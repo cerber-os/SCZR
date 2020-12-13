@@ -10,6 +10,8 @@
 
 #include "queue.h"
 
+#define ARRAY_SIZE(X)      (sizeof(X) / sizeof(X[0]))
+
 enum init_mode {
     INIT_MODE_TRANSMITTER = 0,
     INIT_MODE_RECEIVER = 1
@@ -26,7 +28,7 @@ struct proc_queue {
 };
 
 /*
- * Processes list 
+ * Processes list and their queues
  */
 enum process_ids {
     PROC_HYPERVISOR = 0,
@@ -37,7 +39,7 @@ enum process_ids {
 
 #define INIT_QUEUE_SIZE     (10 * 1024 * 1024)      // 10 MB
 #define INIT_QUEUES_COUNT    3
-static struct proc_queue queues[][INIT_QUEUES_COUNT] = {
+static const struct proc_queue queues[][INIT_QUEUES_COUNT] = {
     [INIT_MODE_TRANSMITTER] = {
         {.from = PROC_HYPERVISOR, .to = PROC_IMAGE_GEN, .name="HYP_GEN"},
         {.from = PROC_HYPERVISOR, .to = PROC_IMAGE_CONV, .name="HYP_CONV"},
@@ -51,7 +53,7 @@ static struct proc_queue queues[][INIT_QUEUES_COUNT] = {
 };
 
 #define INIT_PROCESSES_COUNT    3
-static struct subprocess subprocesses[][INIT_PROCESSES_COUNT] = {
+static const struct subprocess subprocesses[][INIT_PROCESSES_COUNT] = {
     [INIT_MODE_TRANSMITTER] = {
         {.id = PROC_HYPERVISOR, .path="hypervisor", .args={"mode=TRANSMITTER", 0}},
         {.id = PROC_IMAGE_GEN, .path="image_gen", .args={0}},
@@ -67,6 +69,27 @@ static struct subprocess subprocesses[][INIT_PROCESSES_COUNT] = {
 
 static int error_exit(int error_code) {
     exit(error_code);
+}
+
+
+static void low_level_init(void) {
+    static const char const* init_commands[] = {
+        // Mount basic filesystems
+        "mount -t tmpfs none /tmp",
+        "mount -t proc none /proc",
+        "mount -t sysfs none /sys",
+
+        // pts is requires for Xorg
+        "mkdir /dev/pts",
+        "mount -t devpts none /dev/pts",
+    };
+
+    for(int i = 0; i < ARRAY_SIZE(init_commands); i++) {
+        int ret = system(init_commands[i]);
+        if(ret != 0) {
+            fprintf(stderr, "Warning: Command '%s' failed with error %d\n", init_commands[i], ret);
+        }
+    }
 }
 
 
@@ -92,7 +115,10 @@ int main(int argc, char** argv) {
         }
     }
 
-    // TODO: Low level init
+    // If we're running as root (QEMU scenario), perform low level init
+    if(getuid() == 0) {
+        low_level_init();
+    }
 
     // Setup queues
     for(int i = 0; i < INIT_QUEUES_COUNT; i++) {
