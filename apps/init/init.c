@@ -73,7 +73,7 @@ static int error_exit(int error_code) {
 
 
 static void low_level_init(void) {
-    static const char const* init_commands[] = {
+    static const char* init_commands[] = {
         // Mount basic filesystems
         "mount -t tmpfs none /tmp",
         "mount -t proc none /proc",
@@ -122,7 +122,7 @@ int main(int argc, char** argv) {
 
     // Setup queues
     for(int i = 0; i < INIT_QUEUES_COUNT; i++) {
-        struct proc_queue* q = &queues[mode][i];
+        const struct proc_queue* q = &queues[mode][i];
         char path[256];
         strcpy(path, "/tmp_QUEUE_");
         strcpy(path + sizeof("/tmp_QUEUE_") - 1, q->name);
@@ -138,7 +138,7 @@ int main(int argc, char** argv) {
     for(int i = 0; i < INIT_PROCESSES_COUNT; i++) {
         int pid = fork();
         if(pid == 0) {
-            execve(subprocesses[mode][i].path, subprocesses[mode][i].args, NULL);
+            execve(subprocesses[mode][i].path, (char *const*)subprocesses[mode][i].args, NULL);
         } else if (pid < 0) {
             perror("[-] init: fork failed");
             error_exit(1);

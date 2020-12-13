@@ -16,7 +16,7 @@
 #include "queue.h"
 
 int queue_create(const char* path, size_t size) {
-    int memfd = shm_open(path, O_CREAT | O_RDWR, 0755);
+    int memfd = shm_open(path, O_CREAT | O_TRUNC | O_RDWR, 0755);
     if(memfd < 0) {
         perror("[-] queue: shm_open failed");
         return QUEUE_EFAULT;
@@ -79,7 +79,7 @@ queue_t* queue_acquire(const char* path, int mode) {
         return (queue_t*) QUEUE_EMEM;
     }
 
-    int memfd = shm_open(path, O_CREAT | O_RDWR, 0755);
+    int memfd = shm_open(path, O_RDWR, 0755);
     if(memfd < 0) {
         perror("[-] queue (acquire): shm_open failed");
         return (queue_t*) QUEUE_EFAULT;
@@ -138,6 +138,9 @@ static struct queue_body* get_write_queue(struct queue_header* header, int mode)
 static int _queue_read(queue_t* queue, char** buffer, size_t* outSize) {
     struct queue_body* read_q = get_read_queue(queue->header, queue->mode);
     assert(read_q->first != NULL);
+
+    // Initializes arguements - easier to trace invalid error handling
+    *buffer = 0; *outSize = 0;
 
     char* el_addr = read_q->first->data;
     size_t el_size = read_q->first->size;
@@ -214,33 +217,34 @@ static void* _queue_get_packet_end(struct queue_body* body, struct queue_element
 static int _queue_write(queue_t* queue, char* buffer, size_t size) {
     struct queue_body* write_q = get_write_queue(queue->header, queue->mode);
 
+    char* last_end = NULL;
     struct queue_element* last = write_q->last;
     struct queue_element* first = write_q->first;
     size_t free_space = 0;
 
-    if(last == NULL || first == NULL)
+    if(last == NULL || first == NULL) {
         if(size > write_q->data_size)
             return QUEUE_EFAULT;
-        
-    char* last_end = _queue_get_packet_end(write_q, last);
-
-    if(last_end > first->data) {
-        // Queue looks as follow
-        //    | ----- FIRST --- .... --- LAST ---- |
-        // So the free space is from last to end + from start to first
-        free_space = (write_q->data + write_q->data_size) - last_end + (first->data - write_q->data);
-        if(size + sizeof(struct queue_element) + QUEUE_WRITE_MARGIN > free_space)
-            return QUEUE_E2BIG;
     } else {
-        // Queue looks as follow
-        //    | ----- LAST --- .... --- FIRST ---- |
-        // So the free space is from last to first
-        free_space = (first->data - sizeof(struct queue_element)) - last_end;
-        if(size + sizeof(struct queue_element) + QUEUE_WRITE_MARGIN > free_space)
-            return QUEUE_E2BIG;
+        last_end = _queue_get_packet_end(write_q, last);
+
+        if(last_end > first->data) {
+            // Queue looks as follow
+            //    | ----- FIRST --- .... --- LAST ---- |
+            // So the free space is from last to end + from start to first
+            free_space = (write_q->data + write_q->data_size) - last_end + (first->data - write_q->data);
+            if(size + sizeof(struct queue_element) + QUEUE_WRITE_MARGIN > free_space)
+                return QUEUE_E2BIG;
+        } else {
+            // Queue looks as follow
+            //    | ----- LAST --- .... --- FIRST ---- |
+            // So the free space is from last to first
+            free_space = (first->data - sizeof(struct queue_element)) - last_end;
+            if(size + sizeof(struct queue_element) + QUEUE_WRITE_MARGIN > free_space)
+                return QUEUE_E2BIG;
+        }
     }
 
-    last_end = _queue_get_packet_end(write_q, last);
     if(write_q->last == NULL) {
         write_q->last = write_q->data;
     } else {
@@ -256,7 +260,6 @@ static int _queue_write(queue_t* queue, char* buffer, size_t size) {
             write_q->last->next = new_el;
             write_q->last = new_el;
         }
-        
     }
 
     write_q->last->next = NULL;
@@ -285,7 +288,9 @@ int queue_sync_write(queue_t* queue, char* buffer, size_t size) {
 
     do {
         pthread_mutex_lock(&write_q->lock);
+        printf("Got mutes\n");
         ret = _queue_write(queue, buffer, size);
+        printf("Finished write\n");
         pthread_mutex_unlock(&write_q->lock);
 
         if(ret == QUEUE_E2BIG)
