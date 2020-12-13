@@ -1,0 +1,5 @@
+.vscode
+buildroot/
+*.o
+*.so
+.gdb_history
