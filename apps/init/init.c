@@ -60,9 +60,9 @@ static const struct subprocess subprocesses[][INIT_PROCESSES_COUNT] = {
         {.id = PROC_IMAGE_CONV, .path="image_conv", .args={"mode=TRANSMITTER", 0}},
     },
     [INIT_MODE_RECEIVER] = {
-        {.id = PROC_HYPERVISOR, .path="hypervisor", .args={"mode=TRANSMITTER", 0}},
+        {.id = PROC_HYPERVISOR, .path="hypervisor", .args={"mode=RECEIVER", 0}},
         {.id = PROC_IMAGE_VAL, .path="image_val", .args={0}},
-        {.id = PROC_IMAGE_CONV, .path="image_conv", .args={"mode=TRANSMITTER", 0}},
+        {.id = PROC_IMAGE_CONV, .path="image_conv", .args={"mode=RECEIVER", 0}},
     }
 };
 
