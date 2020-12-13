@@ -3,3 +3,4 @@ buildroot/
 *.o
 *.so
 .gdb_history
+out/
