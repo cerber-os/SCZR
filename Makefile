@@ -2,10 +2,13 @@ CC=clang
 CFLAGS=-Wall -g -Og
 LIBS=-lrt -lpthread 
 
-all: utils_queue apps_init apps_hypervisor apps_image_generator apps_image_converter
+all: utils_queue utils_compress apps_init apps_hypervisor apps_image_generator apps_image_converter
 
 utils_queue: utils/queue.c uapi/queue.h
 	$(CC) $(CFLAGS) -I uapi/ -c -o out/utils_queue.o utils/queue.c
+
+utils_compress: utils/fastlz.c uapi/fastlz.h
+	$(CC) $(CFLAGS) -I uapi/ -c -o out/fastlz.o utils/fastlz.c
 
 apps_init: apps/init/init.c utils_queue
 	$(CC) $(CFLAGS) -I uapi/ out/utils_queue.o -o out/init $< $(LIBS)
