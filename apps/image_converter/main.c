@@ -54,65 +54,44 @@ int main(int argc, char **argv)
         {
             struct timespec start = {0}, stop = {0};
             clock_gettime(CLOCK_REALTIME, &start);
+            void* buffer;
             // shared_or_queue will be 0 if we want to transmit all data thru queue
             if(shared_or_queue == 0)
             {
-                struct packet* buffer;
-                void *compress_buffer, *decompress_buffer;
-                // void* decompress_buffer;
                 int ret = queue_sync_read(queue_ptr, &buffer, &packet_size);
                 if(ret != 0) {
                     continue;
                 }
-                compress_buffer = malloc(packet_size);
-                decompress_buffer = malloc(packet_size);
-                memcpy(decompress_buffer, buffer, packet_size);
-                for(int i=0; i<5; i++)
-                {
-                    int rv = fastlz_compress_level(2, (void*)decompress_buffer, packet_size, compress_buffer);
-                    rv = fastlz_decompress(compress_buffer, rv, decompress_buffer, packet_size);
-                }
-                struct packet* for_arduino;
-                for_arduino = malloc(new_packet_size);
-                memcpy((*for_arduino).data, buffer, packet_size);
-                free(buffer);
-                (*for_arduino).start = start;
-                clock_gettime(CLOCK_REALTIME, &stop);
-                (*for_arduino).stop = stop;
-                if(new_packet_size != ir_write(arduino, for_arduino, new_packet_size))
-                {
-                    printf("We failed to sent our packet to Arduino\n");
-                }
             }
             else
             {
-                void* buffer;
-                void *compress_buffer, *decompress_buffer;
                 int ret = queue_sync_read(queue_ptr, &buffer, &message_size);
                 if(ret != 0) {
                     continue;
                 }
-                compress_buffer = malloc(packet_size);
-                decompress_buffer = malloc(packet_size);
-                memcpy(decompress_buffer, buffer, packet_size);
-                for(int i=0; i<5; i++)
-                {
-                    int rv = fastlz_compress_level(2, (void*)decompress_buffer, packet_size, compress_buffer);
-                    rv = fastlz_decompress(compress_buffer, rv, decompress_buffer, packet_size);
-                }
-                struct packet* for_arduino;
-                for_arduino = malloc(new_packet_size);
-                memcpy((*for_arduino).data, buffer, packet_size);
-                free(buffer);
-                (*for_arduino).start = start;
-                clock_gettime(CLOCK_REALTIME, &stop);
-                (*for_arduino).stop = stop;
-                if(new_packet_size != ir_write(arduino, (char*)for_arduino, new_packet_size))
-                {
-                    printf("We failed to sent our packet to Arduino\n");
-                }
+            }
+            void *compress_buffer, *decompress_buffer;
+            compress_buffer = malloc(packet_size);
+            decompress_buffer = malloc(packet_size);
+            memcpy(decompress_buffer, buffer, packet_size);
+            for(int i=0; i<5; i++)
+            {
+                int rv = fastlz_compress_level(2, (void*)decompress_buffer, packet_size, compress_buffer);
+                rv = fastlz_decompress(compress_buffer, rv, decompress_buffer, packet_size);
+            }
+            struct packet* for_arduino;
+            for_arduino = malloc(new_packet_size);
+            memcpy((*for_arduino).data, buffer, packet_size);
+            free(buffer);
+            (*for_arduino).start = start;
+            clock_gettime(CLOCK_REALTIME, &stop);
+            (*for_arduino).stop = stop;
+            if(new_packet_size != ir_write(arduino, (char*)for_arduino, new_packet_size))
+            {
+                printf("We failed to sent our packet to Arduino\n");
             }
             printf("Message processed\n");
+            printf("%lld.%.9ld", (long long)stop.tv_sec, stop.tv_nsec);
         }
         ir_close(arduino);
     }

@@ -71,6 +71,14 @@ int main(int argc, char **argv)
     pixels_size = width*height*sizeof(struct pixel);
     image_size = 2*sizeof(int) + pixels_size;
     packet_size = 2*sizeof(struct timespec) + image_size;
+
+    int rv = queue_create(queue_name, (size_t)(20*packet_size));	
+    if(rv != QUEUE_OK)	
+    {	
+        printf("Failed to create queue");	
+        return 0;	
+    }
+
     queue_ptr = queue_acquire(queue_name, QUEUE_MASTER);
     while(1)
     {
@@ -109,6 +117,7 @@ int main(int argc, char **argv)
             queue_sync_write(queue_ptr, &data, sizeof(data));
         }
         printf("Message sent\n");
+        printf("%lld.%.9ld", (long long)stop.tv_sec, stop.tv_nsec);
     }
     return 0;
 }
