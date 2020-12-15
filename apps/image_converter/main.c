@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include <string.h>
+#include <sys/mman.h>
 #include "image.h"
 #include "queue.h"
 #include "fastlz.h"
@@ -51,6 +52,7 @@ int main(int argc, char **argv)
         queue_ptr = queue_acquire(queue_name, QUEUE_SLAVE);
         struct ir_device* arduino;
         arduino = ir_open(NULL); // TODO - I DON'T KNOW THE PATH
+        int i = 1;
         while(1)
         {
             struct timespec start = {0}, stop = {0};
@@ -85,7 +87,6 @@ int main(int argc, char **argv)
             struct packet* for_arduino;
             for_arduino = malloc(new_packet_size);
             memcpy((*for_arduino).data, buffer, packet_size);
-            free(buffer);
             (*for_arduino).start = start;
             clock_gettime(CLOCK_REALTIME, &stop);
             (*for_arduino).stop = stop;
@@ -93,8 +94,18 @@ int main(int argc, char **argv)
             {
                 printf("We failed to sent our packet to Arduino\n");
             }
-            printf("Message processed\n");
+
+            printf("Message processed %d\n", i);
+            i++;
             printf("%lld.%.9ld\n", (long long)stop.tv_sec, stop.tv_nsec);
+            if(shared_or_queue == 0)
+            {
+                free(buffer);
+            }
+            else
+            {
+                munmap(buffer, packet_size);
+            }
         }
         ir_close(arduino);
     }
