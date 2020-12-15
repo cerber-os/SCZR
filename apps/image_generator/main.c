@@ -50,7 +50,7 @@ int main(int argc, char **argv)
     int width, height, shared_or_queue;
     int packet_size, image_size, pixels_size;
     queue_t* generator_converter;
-    char* queue_name = "generator_converter";
+    char* queue_name = "tmp_QUEUE_GEN_CONV";    // from init.c
     char* ready = "1";
     if(argc<2)
     {
@@ -75,22 +75,10 @@ int main(int argc, char **argv)
     // shared_or_queue will be 0 if we want to transmit all data thru queue
     if(shared_or_queue == 0)
     {
-        int rv = queue_create(queue_name, (size_t)(20*packet_size));
-        if(rv != QUEUE_OK)
-        {
-            printf("Failed to create queue");
-            return 0;
-        }
         generator_converter = queue_acquire(queue_name, QUEUE_MASTER);
     }
     else
     {
-        int rv = queue_create(queue_name, (size_t)(20*sizeof(ready)));
-        if(rv != QUEUE_OK)
-        {
-            printf("Failed to create queue");
-            return 0;
-        }
         generator_converter = queue_acquire(queue_name, QUEUE_MASTER);
     }
     while(1)
@@ -100,9 +88,9 @@ int main(int argc, char **argv)
         struct pixel* just_pixels;
         struct packet* data;        
         clock_gettime(CLOCK_REALTIME, &start);
-        printf("dupka 1");
+        printf("dupka 1\n");
         just_pixels = generate_image(width, height);
-        printf("dupka 1");
+        printf("dupka 1\n");
         generated_image = malloc(image_size);
         (*generated_image).width = width;
         (*generated_image).height = height;
@@ -129,7 +117,7 @@ int main(int argc, char **argv)
             free(data);
             queue_sync_write(generator_converter, ready, sizeof(ready));
         }
-        printf("Message sent");
+        printf("Message sent\n");
     }
     return 0;
 }

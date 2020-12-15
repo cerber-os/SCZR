@@ -9,7 +9,7 @@ int main(int argc, char **argv)
     int width, height, shared_or_queue;
     int packet_size, image_size, pixels_size;
     queue_t* generator_converter;
-    char* queue_name = "generator_converter";
+    char* queue_name = "tmp_QUEUE_GEN_CONV";    // from init.c
     if(argc<2)
     {
         printf("Not enough arguments\n");
@@ -40,14 +40,18 @@ int main(int argc, char **argv)
     else
     {
         generator_converter = queue_acquire(queue_name, QUEUE_SLAVE);
+        printf("I have queue\n");
     }
     while(1)
     {
-        char** buffer;
-        printf("I am waiting for message");
-        queue_sync_read(generator_converter, buffer, packet_size);
-        printf("I got message");
-        free(*buffer);
+        char* buffer;
+        printf("I am waiting for message\n");
+        int ret = queue_sync_read(generator_converter, &buffer, &packet_size);
+        if(ret == 0) {
+            // valid message
+        }
+        printf("I got message\n");
+        free(buffer);
     }
     return 0;
 }

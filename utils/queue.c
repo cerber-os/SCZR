@@ -288,16 +288,14 @@ int queue_sync_write(queue_t* queue, char* buffer, size_t size) {
 
     do {
         pthread_mutex_lock(&write_q->lock);
-        printf("Got mutes\n");
         ret = _queue_write(queue, buffer, size);
-        printf("Finished write\n");
         pthread_mutex_unlock(&write_q->lock);
 
         if(ret == QUEUE_E2BIG)
             usleep(1000);
     } while(ret == QUEUE_E2BIG);
 
-    if(ret > 0)
+    if(ret >= 0)
         sem_post(&write_q->sem_packets);
     return ret;
 }
@@ -311,7 +309,7 @@ int queue_async_write(queue_t* queue, char* buffer, size_t size) {
     ret = _queue_write(queue, buffer, size);
     pthread_mutex_unlock(&write_q->lock);
 
-    if(ret > 0)
+    if(ret >= 0)
         sem_post(&write_q->sem_packets);
     return ret;
 }
