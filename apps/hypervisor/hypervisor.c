@@ -4,31 +4,75 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
+
+#include "graphics.h"
 
 #include "queue.h"
 
+enum hyp_mode {
+    MODE_TRANSMITTER = 0,
+    MODE_RECEIVER = 1,
+};
+int mode;
+
+char* window_title[] = {"TRANSMITTER", "RECEIVER"};
+hyp_window* win;
+
+queue_t* q_hyp_gen;
+
+void window_task() {
+    // Title at the top
+    draw_string(win, 10, 10, window_title[mode]);
+
+    // Image section
+    int image_width = 200;
+    draw_image(win, 5, 20, image_width, 0, 0);
+
+    // Stats section
+    const int stats_start = 25;
+    draw_string(win, image_width + 10, stats_start, "Statistics:");
+    draw_string(win, image_width + 10, stats_start + 11, "Generator idle = 20%");
+    draw_string(win, image_width + 10, stats_start + 22, "Compressor idle = 0%");
+    draw_string(win, image_width + 10, stats_start + 33, "Overall speed = 15 IMG/min");
+}
+
+void stats_task() {
+
+}
+
 int main(int argc, char** argv) {
-    queue_t* q_hyp_gen = queue_acquire("tmp_QUEUE_HYP_GEN", QUEUE_MASTER);
+    q_hyp_gen = queue_acquire("tmp_QUEUE_HYP_GEN", QUEUE_MASTER);
     if(q_hyp_gen == NULL) {
         fprintf(stderr, "Failed to acquire queue\n");
         exit(1);
     }
-    printf("Got buffer\n");
 
-    int ret = queue_sync_write(q_hyp_gen, "abcdef", 6);
-    printf("Got: %d\n", ret);
+    for(int i = 1; i < argc; i++) {
+        if(!strcmp(argv[i], "mode=TRANSMITTER")) 
+            mode = MODE_TRANSMITTER;
+        else if(!strcmp(argv[i], "mode=RECEIVER"))
+            mode = MODE_RECEIVER;
+        else {
+            fprintf(stderr, "Invalid option was provided '%s'\n", argv[i]);
+            exit(1);
+        }
+    }
 
-    ret = queue_async_write(q_hyp_gen, "abcdef", 6);
-    printf("Got2: %d\n", ret);
+    win = init_window();
+    if(win == NULL) {
+        fprintf(stderr, "Failed to init display\n");
+        exit(1);       
+    }
 
-    char* buffer; size_t size;
-    ret = queue_async_read(q_hyp_gen, &buffer, &size);
-    printf("Got2: %d %p %ld\n", ret, buffer, size);
+    while(1) {
+        if(is_screen_exposed(win))
+				window_task();
+        
 
-    printf("Will hang...\n");
-    fflush(stdout);
+        usleep(100000);
+    }
 
-    ret = queue_sync_read(q_hyp_gen, &buffer, &size);
-    printf("Got2: %d %p %ld\n", ret, buffer, size);
+    close_window(win);
 }
