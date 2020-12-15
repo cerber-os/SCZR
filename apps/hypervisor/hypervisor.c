@@ -43,6 +43,8 @@ void stats_task() {
 }
 
 int main(int argc, char** argv) {
+    fprintf(stderr, "Hypervisor started\n");
+    
     q_hyp_gen = queue_acquire("tmp_QUEUE_HYP_GEN", QUEUE_MASTER);
     if(q_hyp_gen == NULL) {
         fprintf(stderr, "Failed to acquire queue\n");

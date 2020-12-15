@@ -66,55 +66,8 @@ static const struct subprocess subprocesses[][INIT_PROCESSES_COUNT] = {
     }
 };
 
-static char * const default_envp[] = {"DISPLAY=:0", "XAUTHORITY=/home/somebody/.Xauthority", 0};
+static char * const default_envp[] = {"DISPLAY=:0", "XAUTHORITY=/root/.Xauthority", 0};
 
-
-static int error_exit(int error_code) {
-    exit(error_code);
-}
-
-
-static void low_level_init(void) {
-    static const char* init_commands[] = {
-        // Mount basic filesystems
-        "mount -t tmpfs none /tmp",
-        "mount -t proc none /proc",
-        "mount -t sysfs none /sys",
-
-        // pts is requires for Xorg
-        "mkdir /dev/pts",
-        "mount -t devpts none /dev/pts",
-        "mkdir -p /dev/shm",
-        "mount -t tmpfs none /dev/shm"
-    };
-
-    for(int i = 0; i < ARRAY_SIZE(init_commands); i++) {
-        printf("[i] init: executing: `%s`\n", init_commands[i]);
-
-        int ret = system(init_commands[i]);
-        if(ret != 0) {
-            fprintf(stderr, "Warning: Command '%s' failed with error %d\n", init_commands[i], ret);
-        }
-    }
-
-    // Start Xorg
-    if(fork() == 0) {
-        printf("Starting Xorg server\n");
-
-        char* const argv[] = {"startx", 0};
-        execve("/usr/bin/startx", argv, NULL);
-
-        fprintf(stderr, "Starting /usr/bin/startx failed...\n");
-
-        error_exit(1);
-    }
-
-        char* const argv[] = {"sh", 0};
-        execve("/bin/sh", argv, NULL);
-
-    // Wait for Xorg to start - not the best...
-    sleep(1);
-}
 
 
 int main(int argc, char** argv) {
@@ -133,18 +86,12 @@ int main(int argc, char** argv) {
                 mode = INIT_MODE_RECEIVER;
             else {
                 fprintf(stderr, "Invalid mode provided - '%s'. Expected either TRANSMITTER or RECEIVER\n", opt);
-                error_exit(1);
+                exit(1);
             }
         } else {
             fprintf(stderr, "Invalid option provided - '%s'\n", argv[i]);
-            error_exit(1);
+            exit(1);
         }
-    }
-
-    // If we're running as root (QEMU scenario), perform low level init
-    if(getuid() == 0) {
-        printf("[i] init: starting low level init\n");
-        low_level_init();
     }
 
     // Setup queues
@@ -158,7 +105,7 @@ int main(int argc, char** argv) {
         int ret = queue_create(path, INIT_QUEUE_SIZE);
         if(ret < 0) {
             fprintf(stderr, "Failed to setup queue - '%s'\n", path);
-            error_exit(1);
+            exit(1);
         }
     }
 
@@ -170,10 +117,10 @@ int main(int argc, char** argv) {
             execve(subprocesses[mode][i].path, (char *const*)subprocesses[mode][i].args, default_envp);
 
             printf("[i] init: failed to start %s \n", subprocesses[mode][i].path);
-            error_exit(1);
+            exit(1);
         } else if (pid < 0) {
             perror("[-] init: fork failed\n");
-            error_exit(1);
+            exit(1);
         }
     }
 
