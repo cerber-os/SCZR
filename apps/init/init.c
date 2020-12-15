@@ -19,7 +19,7 @@ enum init_mode {
 struct subprocess {
     int id;
     const char* path;
-    const char* args[3];
+    const char* args[4];
 };
 struct proc_queue {
     int from;
@@ -56,13 +56,13 @@ static const struct proc_queue queues[][INIT_QUEUES_COUNT] = {
 static const struct subprocess subprocesses[][INIT_PROCESSES_COUNT] = {
     [INIT_MODE_TRANSMITTER] = {
         {.id = PROC_HYPERVISOR, .path="hypervisor", .args={"mode=TRANSMITTER", 0}},
-        {.id = PROC_IMAGE_GEN, .path="image_gen", .args={0}},
-        {.id = PROC_IMAGE_CONV, .path="image_conv", .args={"mode=TRANSMITTER", 0}},
+        {.id = PROC_IMAGE_GEN, .path="image_gen", .args={"0", "2000", "2000", 0}},
+        {.id = PROC_IMAGE_CONV, .path="image_conv", .args={"0", "mode=TRANSMITTER", "2000", "2000"}},
     },
     [INIT_MODE_RECEIVER] = {
         {.id = PROC_HYPERVISOR, .path="hypervisor", .args={"mode=RECEIVER", 0}},
-        {.id = PROC_IMAGE_VAL, .path="image_val", .args={0}},
-        {.id = PROC_IMAGE_CONV, .path="image_conv", .args={"mode=RECEIVER", 0}},
+        {.id = PROC_IMAGE_VAL, .path="image_val", .args={"0", "2000", "2000", 0}},
+        {.id = PROC_IMAGE_CONV, .path="image_conv", .args={"0", "mode=RECEIVER", "2000", "2000"}},
     }
 };
 

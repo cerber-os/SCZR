@@ -49,9 +49,8 @@ int main(int argc, char **argv)
 {
     int width, height, shared_or_queue;
     int packet_size, image_size, pixels_size;
-    queue_t* generator_converter;
+    queue_t* queue_ptr;
     char* queue_name = "tmp_QUEUE_GEN_CONV";    // from init.c
-    char* ready = "1";
     if(argc<2)
     {
         printf("Not enough arguments\n");
@@ -72,15 +71,7 @@ int main(int argc, char **argv)
     pixels_size = width*height*sizeof(struct pixel);
     image_size = 2*sizeof(int) + pixels_size;
     packet_size = 2*sizeof(struct timespec) + image_size;
-    // shared_or_queue will be 0 if we want to transmit all data thru queue
-    if(shared_or_queue == 0)
-    {
-        generator_converter = queue_acquire(queue_name, QUEUE_MASTER);
-    }
-    else
-    {
-        generator_converter = queue_acquire(queue_name, QUEUE_MASTER);
-    }
+    queue_ptr = queue_acquire(queue_name, QUEUE_MASTER);
     while(1)
     {
         struct timespec start = {0}, stop = {0};
@@ -88,34 +79,34 @@ int main(int argc, char **argv)
         struct pixel* just_pixels;
         struct packet* data;        
         clock_gettime(CLOCK_REALTIME, &start);
-        printf("dupka 1\n");
         just_pixels = generate_image(width, height);
-        printf("dupka 1\n");
         generated_image = malloc(image_size);
         (*generated_image).width = width;
         (*generated_image).height = height;
         memcpy((*generated_image).pixel_info, just_pixels, pixels_size);
         free(just_pixels);
         // above we generated random image, now we need to send it
-        data = malloc(packet_size);
-        memcpy((*data).data, generated_image, image_size);
-        free(generated_image);
-        (*data).start = start;
+        // shared_or_queue will be 0 if we want to transmit all data thru queue
         if(shared_or_queue == 0)
         {
+            data = malloc(packet_size);
+            memcpy((*data).data, generated_image, image_size);
+            free(generated_image);
+            (*data).start = start;
             clock_gettime(CLOCK_REALTIME, &stop);
             (*data).stop = stop;
-            queue_sync_write(generator_converter, (char*)data, packet_size);
+            queue_sync_write(queue_ptr, (char*)data, packet_size);
             free(data);
         }
         else
         {
-            void* shmem = create_shared_memory(packet_size);
+            data = (struct packet*) create_shared_memory(packet_size);
+            memcpy((*data).data, generated_image, image_size);
+            free(generated_image);
+            (*data).start = start;
             clock_gettime(CLOCK_REALTIME, &stop);
             (*data).stop = stop;
-            memcpy(shmem, data, packet_size);
-            free(data);
-            queue_sync_write(generator_converter, ready, sizeof(ready));
+            queue_sync_write(queue_ptr, &data, sizeof(data));
         }
         printf("Message sent\n");
     }
