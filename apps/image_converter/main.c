@@ -10,7 +10,8 @@
 int main(int argc, char **argv)
 {
     int width, height, shared_or_queue, trans_or_ret;
-    int packet_size, image_size, pixels_size, message_size, new_packet_size;
+    size_t packet_size, message_size;
+    int image_size, pixels_size, new_packet_size;
     queue_t* queue_ptr;
     if(argc<3)
     {
@@ -60,6 +61,7 @@ int main(int argc, char **argv)
             {
                 int ret = queue_sync_read(queue_ptr, &buffer, &packet_size);
                 if(ret != 0) {
+                    printf("err_ret = %d\n", ret);
                     continue;
                 }
             }
@@ -67,6 +69,7 @@ int main(int argc, char **argv)
             {
                 int ret = queue_sync_read(queue_ptr, &buffer, &message_size);
                 if(ret != 0) {
+                    printf("err_ret = %d\n", ret);
                     continue;
                 }
             }
@@ -91,7 +94,7 @@ int main(int argc, char **argv)
                 printf("We failed to sent our packet to Arduino\n");
             }
             printf("Message processed\n");
-            printf("%lld.%.9ld", (long long)stop.tv_sec, stop.tv_nsec);
+            printf("%lld.%.9ld\n", (long long)stop.tv_sec, stop.tv_nsec);
         }
         ir_close(arduino);
     }

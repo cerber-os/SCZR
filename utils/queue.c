@@ -46,17 +46,25 @@ int queue_create(const char* path, size_t size) {
     struct queue_header* header = (struct queue_header*) addr;
     header->full_size = memory_size;
 
-    pthread_mutex_init(&header->queue_a.lock, NULL);
+    pthread_mutexattr_t attrmutex;
+
+    /* Initialise attribute to mutex. */
+    pthread_mutexattr_init(&attrmutex);
+    pthread_mutexattr_setpshared(&attrmutex, PTHREAD_PROCESS_SHARED);
+
+    pthread_mutex_init(&header->queue_a.lock, &attrmutex);
     sem_init(&header->queue_a.sem_packets, 1, 0);
     header->queue_a.first = header->queue_a.last = NULL;
     header->queue_a.data_size = size;
     header->queue_b.data = addr + sizeof(*header);
     
-    pthread_mutex_init(&header->queue_b.lock, NULL);
+    pthread_mutex_init(&header->queue_b.lock, &attrmutex);
     sem_init(&header->queue_b.sem_packets, 1, 0);
     header->queue_b.first = header->queue_b.last = NULL;
     header->queue_b.data_size = size;
     header->queue_b.data = addr + sizeof(*header) + header->queue_a.data_size;
+
+    pthread_mutexattr_destroy(&attrmutex);
 
     munmap(addr, memory_size);
     close(memfd);
@@ -139,11 +147,9 @@ static int _queue_read(queue_t* queue, char** buffer, size_t* outSize) {
     struct queue_body* read_q = get_read_queue(queue->header, queue->mode);
     assert(read_q->first != NULL);
 
-    // Initializes arguements - easier to trace invalid error handling
-    *buffer = 0; *outSize = 0;
-
     char* el_addr = read_q->first->data;
     size_t el_size = read_q->first->size;
+
     *outSize = el_size;
     *buffer = malloc(*outSize);
     if(*buffer == NULL) {
@@ -265,7 +271,6 @@ static int _queue_write(queue_t* queue, char* buffer, size_t size) {
     write_q->last->next = NULL;
     write_q->last->size = size;
 
-    // TODO: Double memcpy
     size_t copy_size_a = (write_q->data + write_q->data_size) - write_q->last->data;
     if(copy_size_a > size)
         copy_size_a = size;
