@@ -55,16 +55,18 @@ static const struct proc_queue queues[][INIT_QUEUES_COUNT] = {
 #define INIT_PROCESSES_COUNT    3
 static const struct subprocess subprocesses[][INIT_PROCESSES_COUNT] = {
     [INIT_MODE_TRANSMITTER] = {
-        {.id = PROC_HYPERVISOR, .path="hypervisor", .args={"mode=TRANSMITTER", 0}},
-        {.id = PROC_IMAGE_GEN, .path="image_gen", .args={0}},
-        {.id = PROC_IMAGE_CONV, .path="image_conv", .args={"mode=TRANSMITTER", 0}},
+        {.id = PROC_HYPERVISOR, .path="hypervisor", .args={"hypervisor", "mode=TRANSMITTER", 0}},
+        {.id = PROC_IMAGE_GEN, .path="image_gen", .args={"image_gen", 0}},
+        {.id = PROC_IMAGE_CONV, .path="image_conv", .args={"image_conv", "mode=TRANSMITTER", 0}},
     },
     [INIT_MODE_RECEIVER] = {
-        {.id = PROC_HYPERVISOR, .path="hypervisor", .args={"mode=RECEIVER", 0}},
-        {.id = PROC_IMAGE_VAL, .path="image_val", .args={0}},
-        {.id = PROC_IMAGE_CONV, .path="image_conv", .args={"mode=RECEIVER", 0}},
+        {.id = PROC_HYPERVISOR, .path="hypervisor", .args={"hypervisor", "mode=RECEIVER", 0}},
+        {.id = PROC_IMAGE_VAL, .path="image_val", .args={"image_val", 0}},
+        {.id = PROC_IMAGE_CONV, .path="image_conv", .args={"image_conv", "mode=RECEIVER", 0}},
     }
 };
+
+static char * const default_envp[] = {"DISPLAY=:0", "XAUTHORITY=/home/somebody/.Xauthority", 0};
 
 
 static int error_exit(int error_code) {
@@ -82,19 +84,43 @@ static void low_level_init(void) {
         // pts is requires for Xorg
         "mkdir /dev/pts",
         "mount -t devpts none /dev/pts",
+        "mkdir -p /dev/shm",
+        "mount -t tmpfs none /dev/shm"
     };
 
     for(int i = 0; i < ARRAY_SIZE(init_commands); i++) {
+        printf("[i] init: executing: `%s`\n", init_commands[i]);
+
         int ret = system(init_commands[i]);
         if(ret != 0) {
             fprintf(stderr, "Warning: Command '%s' failed with error %d\n", init_commands[i], ret);
         }
     }
+
+    // Start Xorg
+    if(fork() == 0) {
+        printf("Starting Xorg server\n");
+
+        char* const argv[] = {"startx", 0};
+        execve("/usr/bin/startx", argv, NULL);
+
+        fprintf(stderr, "Starting /usr/bin/startx failed...\n");
+
+        error_exit(1);
+    }
+
+        char* const argv[] = {"sh", 0};
+        execve("/bin/sh", argv, NULL);
+
+    // Wait for Xorg to start - not the best...
+    sleep(1);
 }
 
 
 int main(int argc, char** argv) {
     enum init_mode mode = INIT_MODE_TRANSMITTER;
+
+    printf("[i] init: started with argc #%d\n", argc);
 
     // Parse program options
     for(int i = 1; i < argc; i++) {
@@ -117,10 +143,12 @@ int main(int argc, char** argv) {
 
     // If we're running as root (QEMU scenario), perform low level init
     if(getuid() == 0) {
+        printf("[i] init: starting low level init\n");
         low_level_init();
     }
 
     // Setup queues
+    printf("[i] init: setting up queues\n");
     for(int i = 0; i < INIT_QUEUES_COUNT; i++) {
         const struct proc_queue* q = &queues[mode][i];
         char path[256];
@@ -138,9 +166,13 @@ int main(int argc, char** argv) {
     for(int i = 0; i < INIT_PROCESSES_COUNT; i++) {
         int pid = fork();
         if(pid == 0) {
-            execve(subprocesses[mode][i].path, (char *const*)subprocesses[mode][i].args, NULL);
+            printf("[i] init: starting %s...\n", subprocesses[mode][i].path);
+            execve(subprocesses[mode][i].path, (char *const*)subprocesses[mode][i].args, default_envp);
+
+            printf("[i] init: failed to start %s \n", subprocesses[mode][i].path);
+            error_exit(1);
         } else if (pid < 0) {
-            perror("[-] init: fork failed");
+            perror("[-] init: fork failed\n");
             error_exit(1);
         }
     }
