@@ -76,13 +76,13 @@ queue_t* queue_acquire(const char* path, int mode) {
     queue_t* new_queue = malloc(sizeof(queue_t));
     if(new_queue == NULL) {
         perror("[-] queue: malloc failed");
-        return (queue_t*) QUEUE_EMEM;
+        return NULL;
     }
 
     int memfd = shm_open(path, O_RDWR, 0755);
     if(memfd < 0) {
         perror("[-] queue (acquire): shm_open failed");
-        return (queue_t*) QUEUE_EFAULT;
+        return NULL;
     }
 
     // Mmap only header on shared memory
@@ -92,7 +92,7 @@ queue_t* queue_acquire(const char* path, int mode) {
     if(addr == MAP_FAILED) {
         perror("[-] queue (acquire): mmap failed");
         close(memfd);
-        return (queue_t*) QUEUE_EFAULT;
+        return NULL;
     }
 
     // Read size of queue memory and reallocate buffer
@@ -103,7 +103,7 @@ queue_t* queue_acquire(const char* path, int mode) {
     if(addr == MAP_FAILED) {
         perror("[-] queue (acquire): (re)mmap failed");
         close(memfd);
-        return (queue_t*) QUEUE_EFAULT;
+        return NULL;
     }
 
     // Fill queue information structure
@@ -246,17 +246,17 @@ static int _queue_write(queue_t* queue, char* buffer, size_t size) {
     }
 
     if(write_q->last == NULL) {
-        write_q->last = write_q->data;
+        write_q->last = (struct queue_element *) write_q->data;
     } else {
         size_t right_space_left = (write_q->data + write_q->data_size) - last_end;
         if(right_space_left > sizeof(struct queue_element) + 5) {
             // Case 1: Enough space for queue_element header
-            struct queue_element* new_el = last_end;
+            struct queue_element* new_el = (struct queue_element *) last_end;
             write_q->last->next = new_el;
             write_q->last = new_el;
         } else {
             // Case 2: NOT enough space for queue_element header
-            struct queue_element* new_el = write_q->data;
+            struct queue_element* new_el = (struct queue_element *) write_q->data;
             write_q->last->next = new_el;
             write_q->last = new_el;
         }
