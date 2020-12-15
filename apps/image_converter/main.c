@@ -107,7 +107,7 @@ int main(int argc, char **argv)
                 (*for_arduino).start = start;
                 clock_gettime(CLOCK_REALTIME, &stop);
                 (*for_arduino).stop = stop;
-                if(new_packet_size != ir_write(arduino, for_arduino, new_packet_size))
+                if(new_packet_size != ir_write(arduino, (char*)for_arduino, new_packet_size))
                 {
                     printf("We failed to sent our packet to Arduino\n");
                 }
