@@ -48,7 +48,7 @@ struct pixel* generate_image(int width, int height)
 int main(int argc, char **argv)
 {
     int width, height, shared_or_queue;
-    int packet_size, image_size, pixels_size;
+    int packet_size, image_size, pixels_size, message_size;
     queue_t* queue_ptr;
     char* queue_name = "tmp_QUEUE_GEN_CONV";    // from init.c
     if(argc<2)
@@ -71,15 +71,15 @@ int main(int argc, char **argv)
     pixels_size = width*height*sizeof(struct pixel);
     image_size = 2*sizeof(int) + pixels_size;
     packet_size = 2*sizeof(struct timespec) + image_size;
-
-    int rv = queue_create(queue_name, (size_t)(20*packet_size));	
+    message_size = sizeof(char*);
+    int rv = queue_create(queue_name, (size_t)(50*packet_size));	
     if(rv != QUEUE_OK)	
     {	
         printf("Failed to create queue");	
         return 0;	
     }
-
     queue_ptr = queue_acquire(queue_name, QUEUE_MASTER);
+    int i = 1;
     while(1)
     {
         struct timespec start = {0}, stop = {0};
@@ -114,10 +114,11 @@ int main(int argc, char **argv)
             (*data).start = start;
             clock_gettime(CLOCK_REALTIME, &stop);
             (*data).stop = stop;
-            queue_sync_write(queue_ptr, &data, sizeof(data));
+            queue_sync_write(queue_ptr, (char*)&data, sizeof(char*));
         }
-        printf("Message sent\n");
-        printf("%lld.%.9ld", (long long)stop.tv_sec, stop.tv_nsec);
+        printf("Message sent %d\n", i);
+        i++;
+        printf("%lld.%.9ld\n", (long long)stop.tv_sec, stop.tv_nsec);
     }
     return 0;
 }
