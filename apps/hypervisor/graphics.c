@@ -4,6 +4,7 @@
 #include <unistd.h>
 
 #include "graphics.h"
+#include "image.h"
 
 
 
@@ -58,16 +59,27 @@ int is_screen_exposed(hyp_window* hwnd) {
     return 0;
 }
 
-void draw_image(hyp_window* hwnd, int x, int y, int width, int height, char* buffer) {
-    return;
-    // TODO: Convery from 24-bits
+void draw_image(hyp_window* hwnd, int x, int y, int width, int height, struct pixel* buffer) {
+
+    int* buf32 = malloc(width * height * 4);
+    for(int x = 0; x < width; x++)
+        for(int y = 0; y < height; y++)
+            buf32[y * width + x] =  (buffer[y * width + x].red)         | \
+                                    (buffer[y * width + x].green << 8)  | \
+                                    (buffer[y * width + x].blue << 16);
+    
     XImage* image = XCreateImage(hwnd->display, hwnd->visual, 
                 DefaultDepth(hwnd->display, DefaultScreen(hwnd->display)), 
-                ZPixmap, 0, buffer, width, height, 32, 0);
+                ZPixmap, 0, (char*)buf32, width, height, 32, 0);
     XPutImage(hwnd->display, hwnd->win,
                 DefaultGC(hwnd->display, hwnd->screen_num),
                 image,
                 0, 0,
                 x, y,
                 width, height);
+    free(buf32);
+}
+
+void clear_screen(hyp_window* hwnd) {
+    XClearWindow(hwnd->display, hwnd->win);
 }

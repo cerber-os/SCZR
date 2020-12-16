@@ -7,7 +7,6 @@
 #include <semaphore.h>
 #include <unistd.h>
 
-#define QUEUE_MMAP_ADDR     (void*)0xcaffe000
 #define QUEUE_WRITE_MARGIN  50
 
 enum queue_error {
@@ -38,6 +37,7 @@ struct queue_element {
 
 // Represents allocated two-way queue
 struct queue_header {
+    int uid;
     size_t full_size;
 
     struct queue_body {
@@ -66,9 +66,10 @@ typedef struct queue {
  * Create a new queue
  *  @path: unique name of the queue - must met requirement for shm_open
  *  @size: size in bytes of queues buffer
+ *  @uid:  unique identifier of queue - must be unique for all processes on VM
  *  @return: QUEUE_OK on success, negative otherwise
  */
-int queue_create(const char* path, size_t size);
+int queue_create(const char* path, size_t size, int uid);
 
 /*
  * Delete queue
@@ -101,7 +102,7 @@ void queue_free(queue_t* queue);
  *  @outSize: address of variable to which size of `buffer` will be saved
  *  @return: QUEUE_OK on success, negative otherwise
  */
-int queue_sync_read(queue_t* queue, char** buffer, size_t* outSize);
+int queue_sync_read(queue_t* queue, void** buffer, size_t* outSize);
 
 /* 
  * Asynchronously read from queue - don't wait for packet
@@ -111,7 +112,7 @@ int queue_sync_read(queue_t* queue, char** buffer, size_t* outSize);
  *  @outSize: address of variable to which size of `buffer` will be saved
  *  @return: QUEUE_OK on success, QUEUE_ERETRY if no packet is available
  */
-int queue_async_read(queue_t* queue, char** buffer, size_t* outSize);
+int queue_async_read(queue_t* queue, void** buffer, size_t* outSize);
 
 /* 
  * Synchronously write to queue, i.e.: if queue is full, wait for free space
@@ -120,7 +121,7 @@ int queue_async_read(queue_t* queue, char** buffer, size_t* outSize);
  *  @size: size of buffer in bytes
  *  @return: QUEUE_OK on success, QUEUE_FAULT when packet is too large even for empty queue
  */
-int queue_sync_write(queue_t* queue, char* buffer, size_t size);
+int queue_sync_write(queue_t* queue, void* buffer, size_t size);
 
 /* 
  * Asynchronously write to queue - don't wait for free space
@@ -130,7 +131,7 @@ int queue_sync_write(queue_t* queue, char* buffer, size_t size);
  *  @return: QUEUE_OK on success, QUEUE_FAULT when packet is too large even for empty queue,
  *           QUEUE_ERETRY if queue is currently full
  */
-int queue_async_write(queue_t* queue, char* buffer, size_t size);
+int queue_async_write(queue_t* queue, void* buffer, size_t size);
 
 /* 
  * Return number of messages present in SEND queue

@@ -8,175 +8,151 @@
 #include "queue.h"
 #include "fastlz.h"
 #include "device.h"
-#include "shared_mem.h"
+#include "misc.h"
 
 int main(int argc, char **argv)
 {
-    char memory_name[128] = {0,};
-
-    int width, height, shared_or_queue, trans_or_ret;
-    size_t packet_size, message_size;
-    int image_size, pixels_size, new_packet_size, new_new_packet_size;
+    size_t width, height, trans_or_ret;
 
     printf("[i] image_conv: started\n");
 
-    if(argc<3) {
-        printf("[i] image_conv: Not enough arguments\n");
+    if(argc < 2) {
+        printf("[i] image_conv: missing mode parameter\n");
         return 1;
     }
-    else if(argc<5) {
-        printf("[i] image_conv: Not enough arguments. We will use default width and height\n");
-        shared_or_queue = atoi(argv[1]);
-        if(strcmp(argv[2],"mode=TRANSMITTER") == 0)
-            trans_or_ret = 0;
-        else
-            trans_or_ret = 1;
+
+    if(strcmp(argv[1],"mode=TRANSMITTER") == 0)
+        trans_or_ret = 0;
+    else
+        trans_or_ret = 1;
+
+    if(argc < 4) {
+        printf("[i] image_conv: using default width and height (2000x2000)\n");
         width = height = 2000;
     } else {
-        shared_or_queue = atoi(argv[1]);
-        if(strcmp(argv[2],"mode=TRANSMITTER") == 0)
-            trans_or_ret = 0;
-        else
-            trans_or_ret = 1;
-        width = atoi(argv[3]);
-        height = atoi(argv[4]);
+        width = atoi(argv[2]);
+        height = atoi(argv[3]);
     }
 
-    pixels_size = width*height*sizeof(struct pixel);
-    image_size = 2*sizeof(int) + pixels_size;
-    packet_size = 2*sizeof(struct timespec) + image_size;
-    new_packet_size = 2*sizeof(struct timespec) + packet_size;
-    new_new_packet_size = 2*sizeof(struct timespec) + new_packet_size;
-    message_size = 128;
-
-    ir_device* arduino = ir_open("/dev/ttyACM0");   // TODO: Neither I do
+    // Try to open our remote device
+    ir_device* arduino = ir_open("/dev/ttyACM0");
     if(arduino == NULL) {
-        printf("[i] image_conv: Failed to open arduino\n");
-        return 1;            
+        printf("[i] image_conv: Failed to open arduino ACM0\n");
+
+        arduino = ir_open("/dev/ttyUSB0");
+        if(arduino == NULL) {
+            printf("[i] image_conv: Failed to open arduino USB0\n");
+            printf("[-] image_conv: both attempts to open node failed\n");
+            // Try to continue program execution...
+        }
     }
+
+    struct packet* packet;
+    size_t packet_size;
+    const size_t expected_packet_size = IMAGE_SIZE(width, height) + sizeof(struct packet);
 
     // Now we "split" program into 2 sub-programms.
     // trans_or_ret == 0 means that we are in transmitter mode
     if(trans_or_ret == 0) {
-        queue_t* queue_ptr = queue_acquire("tmp_QUEUE_GEN_CONV", QUEUE_SLAVE);
-        if(queue_ptr == NULL) {
-            printf("[-] image_conv: Failed to open queue `tmp_QUEUE_GEN_CONV`\n");
-            return 1;
-        }
-
-        while(1)
-        {
-            struct timespec start = {0}, stop = {0};
-            char* buffer;
-            clock_gettime(CLOCK_REALTIME, &start);
-
-            // shared_or_queue will be 0 if we want to transmit all data thru queue
-            if(shared_or_queue == 0) {
-                int ret = queue_sync_read(queue_ptr, &buffer, &packet_size);
-                if(ret != 0) {
-                    printf("[-] image_conv: queue_sync_read: err_ret = %d\n", ret);
-                    continue;
-                }
-            } else {
-                int ret = queue_sync_read(queue_ptr, &buffer, &message_size);
-                if(ret != 0) {
-                    continue;
-                }
-                char* name = buffer;
-                buffer = get_shared_memory(name, packet_size);
-                if(buffer == NULL) {
-                    printf("[-] image_conv: Failed to get shared memory %s\n", name);
-                    delete_shared_memory(name); // Remove anyway
-                    continue;    
-                }
-                delete_shared_memory(name);
-            }
-            char* compress_buffer;
-            char* decompress_buffer;
-            compress_buffer = malloc(packet_size);
-            decompress_buffer = malloc(packet_size);
-            memcpy(decompress_buffer, buffer, packet_size);
-            for(int i=0; i<5; i++)
-            {
-                int rv = fastlz_compress_level(2, (void*)decompress_buffer, packet_size, (void*)compress_buffer);
-                rv = fastlz_decompress((void*)compress_buffer, rv, (void*)decompress_buffer, packet_size);
-            }
-            free(decompress_buffer);
-            free(compress_buffer);
-            struct packet* for_arduino;
-            for_arduino = malloc(new_packet_size);
-            memcpy(for_arduino->data, buffer, packet_size);
-            free(buffer);
-            for_arduino->start = start;
-            clock_gettime(CLOCK_REALTIME, &stop);
-            for_arduino->stop = stop;
-            if(new_packet_size != ir_write(arduino, (char*)for_arduino, new_packet_size))
-                printf("[-] image_conv: failed to sent our packet to Arduino\n");
-            free(for_arduino);
-
-            printf("[i] image_conv: Message processed\n");
-        }
-    } else {
-        queue_t* queue_ptr = queue_acquire("tmp_QUEUE_VAL_CONV", QUEUE_MASTER);
-        if(queue_ptr == NULL) {
-            printf("[-] image_conv: Failed to open queue `tmp_QUEUE_GEN_CONV`\n");
+        queue_t* queue_from_gen = queue_acquire("tmp_QUEUE_GEN_CONV", QUEUE_SLAVE);
+        queue_t* queue_to_hyp = queue_acquire("tmp_QUEUE_HYP_CONV", QUEUE_MASTER);
+        if(queue_from_gen == NULL || queue_to_hyp == NULL) {
+            printf("[-] image_conv: Failed to open queues\n");
             return 1;
         }
 
         for(int i = 0; 1; i++)
         {
-            void *buffer;
-            struct timespec start = {0}, stop = {0};
+            struct timespec start;
             clock_gettime(CLOCK_REALTIME, &start);
 
-            buffer = malloc(new_packet_size);
-            if(new_packet_size != ir_read(arduino, (char*)buffer, new_packet_size))
-            {
-                printf("[-] image_conv: We failed to read our packet from Arduino\n");
+            int ret = queue_sync_read(queue_from_gen, (void**) &packet, &packet_size);
+            if(ret != 0) {
+                printf("[-] image_conv: queue_sync_read: err_ret = %d\n", ret);
                 continue;
             }
-            char* compress_buffer;
-            char* decompress_buffer;
-            compress_buffer = malloc(new_packet_size);
-            decompress_buffer = malloc(new_packet_size);
-            memcpy(decompress_buffer, buffer, new_packet_size);
-            for(int i=0; i<5; i++)
-            {
-                int rv = fastlz_compress_level(2, (void*)decompress_buffer, new_packet_size, (void*)compress_buffer);
-                rv = fastlz_decompress((void*)compress_buffer, rv, (void*)decompress_buffer, new_packet_size);
+            if(packet_size != expected_packet_size) {
+                printf("[-] image_conv: invalid packet size - Got: %zu; expected: %zu\n", packet_size, expected_packet_size);
+                free(packet);
+                continue;
             }
-            free(decompress_buffer);
-            free(compress_buffer);
-            struct packet* for_validator;
-            for_validator = malloc(new_new_packet_size);
-            memcpy(for_validator->data, buffer, new_packet_size);
-            free(buffer);
-            for_validator->start = start;
-            clock_gettime(CLOCK_REALTIME, &stop);
-            for_validator->stop = stop;
-
-            if(shared_or_queue == 0)
+            
             {
-                queue_sync_write(queue_ptr, (char*)for_validator, new_new_packet_size);
-                free(for_validator);
-            }
-            else
-            {
-                snprintf(memory_name, sizeof(memory_name) - 1, "/shmem_conv_%d", i);
-                void* data = (struct packet*) create_shared_memory(memory_name, new_new_packet_size);
-                if(data == NULL) {
-                    printf("[-] image_conv: Failed to create shared memory!\n");
+                char* compress_buffer = malloc(packet_size);
+                char* decompress_buffer = malloc(packet_size);
+                if(compress_buffer == NULL || decompress_buffer == NULL) {
+                    printf("[-] image_conv: failed to allocate compress buffers\n");
                     continue;
                 }
+                memcpy(decompress_buffer, packet, packet_size);
 
-                memcpy(data, for_validator, new_new_packet_size);
-                free(for_validator);
-                queue_sync_write(queue_ptr, memory_name, message_size);
+                for(int i = 0; i < 5; i++)
+                {
+                    int rv = fastlz_compress_level(2, (void*)decompress_buffer, packet_size, (void*)compress_buffer);
+                    rv = fastlz_decompress((void*)compress_buffer, rv, (void*)decompress_buffer, packet_size);
+                }
 
-                // Release shared memory
-                munmap(data, new_new_packet_size);
+                free(decompress_buffer);
+                free(compress_buffer);
             }
+
+            set_start_time(packet, STAGE_T_CONV, &start);
+            set_stop_time_now(packet, STAGE_T_CONV);
+            
+            if(packet_size != ir_write(arduino, packet, packet_size))
+                printf("[-] image_conv: failed to sent our packet to Arduino\n");
+
+            printf("[i] image_conv: Message processed - bytes (%zu)\n", packet_size);
+
+            ret = queue_async_write(queue_to_hyp, packet, packet_size);
+            if(ret != 0)
+                printf("[-] image_conv: failed to send packet to hypervisor\n");
+            
+            free(packet);
         }
+    } else {
+        queue_t* queue_to_val = queue_acquire("tmp_QUEUE_VAL_CONV", QUEUE_MASTER);
+        if(queue_to_val == NULL) {
+            printf("[-] image_conv: Failed to open queue `tmp_QUEUE_VAL_CONV`\n");
+            return 1;
+        }
+
+        // Add 10 bytes to size - just for safety
+        char* arduino_input = malloc(expected_packet_size + 10);
+
+        for(int i = 0; 1; i++)
+        {
+            struct timespec start;
+            clock_gettime(CLOCK_REALTIME, &start);
+
+            size_t part_size = 0;
+            while(part_size < expected_packet_size)
+                part_size += ir_read(arduino, (char*)arduino_input + part_size, expected_packet_size - part_size);
+        
+            {
+                char* compress_buffer = malloc(expected_packet_size);
+                char* decompress_buffer = malloc(expected_packet_size);
+                if(compress_buffer == NULL || decompress_buffer == NULL) {
+                    printf("[-] image_conv: failed to allocate compress buffers\n");
+                    continue;
+                }
+                memcpy(decompress_buffer, arduino_input, expected_packet_size);
+                for(int i=0; i<5; i++)
+                {
+                    int rv = fastlz_compress_level(2, (void*)decompress_buffer, expected_packet_size, (void*)compress_buffer);
+                    rv = fastlz_decompress((void*)compress_buffer, rv, (void*)decompress_buffer, expected_packet_size);
+                }
+                free(decompress_buffer);
+                free(compress_buffer);
+            }
+
+            struct packet* packet = (struct packet*) arduino_input;
+            set_start_time(packet, STAGE_R_CONV, &start);
+            set_stop_time_now(packet, STAGE_R_CONV);
+
+            queue_sync_write(queue_to_val, (char*)packet, expected_packet_size);
+        }
+        free(arduino_input);
     }
     return 0;
 }

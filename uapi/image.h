@@ -5,7 +5,7 @@ struct pixel {
     char red;
     char green;
     char blue;
-};
+} __attribute__((packed));
 
 struct image
 {
@@ -14,11 +14,6 @@ struct image
     struct pixel pixel_info[0];
 };
 
-struct packet
-{
-    struct timespec start;
-    struct timespec stop;
-    char data[0];
-};
+#define IMAGE_SIZE(W, H)    ((W) * (H) * sizeof(struct pixel))
 
 #endif

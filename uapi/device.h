@@ -27,7 +27,7 @@ ir_device* ir_open(char* name);
  *  @size: maximum number of bytes to read
  *  @return: number of bytes read or -1 on error (see errno)
  */
-int ir_read(ir_device* dev, char* buffer, size_t size);
+int ir_read(ir_device* dev, void* buffer, size_t size);
 
 /*
  * Write upto `size` bytes from `buffer` to the device
@@ -36,7 +36,7 @@ int ir_read(ir_device* dev, char* buffer, size_t size);
  *  @size: maximum number of bytes to write
  *  @return: number of bytes written or -1 on error (see errno)
  */
-int ir_write(ir_device* dev, char* buffer, size_t size);
+int ir_write(ir_device* dev, void* buffer, size_t size);
 
 /*
  * Close remote device
