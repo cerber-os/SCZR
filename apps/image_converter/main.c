@@ -129,13 +129,13 @@ int main(int argc, char **argv)
                 continue;
             }
             char* compress_buffer, decompress_buffer;
-            compress_buffer = malloc(packet_size);
-            decompress_buffer = malloc(packet_size);
-            memcpy(decompress_buffer, buffer, packet_size);
+            compress_buffer = malloc(new_packet_size);
+            decompress_buffer = malloc(new_packet_size);
+            memcpy(decompress_buffer, buffer, new_packet_size);
             for(int i=0; i<5; i++)
             {
-                int rv = fastlz_compress_level(2, (void*)decompress_buffer, packet_size, (void*)compress_buffer);
-                rv = fastlz_decompress((void*)compress_buffer, rv, (void*)decompress_buffer, packet_size);
+                int rv = fastlz_compress_level(2, (void*)decompress_buffer, new_packet_size, (void*)compress_buffer);
+                rv = fastlz_decompress((void*)compress_buffer, rv, (void*)decompress_buffer, new_packet_size);
             }
             free(decompress_buffer);
             free(compress_buffer);
