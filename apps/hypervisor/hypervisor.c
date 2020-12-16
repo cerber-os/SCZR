@@ -38,8 +38,8 @@ void window_task() {
     draw_string(win, image_width + 10, stats_start + 33, "Overall speed = 15 IMG/min");
 }
 
-void stats_task() {
-
+int stats_task() {
+    return 0;
 }
 
 int main(int argc, char** argv) {
@@ -68,12 +68,13 @@ int main(int argc, char** argv) {
         exit(1);       
     }
 
-    while(1) {
-        if(is_screen_exposed(win))
-				window_task();
-        
+    window_task();
 
-        usleep(100000);
+    while(1) {
+        window_task();
+        window_task();
+
+        usleep(500 * 1000);     // 0.5 s
     }
 
     close_window(win);
