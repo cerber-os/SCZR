@@ -3,8 +3,10 @@
 #include <time.h>
 #include <sys/mman.h>
 #include <string.h>
+
 #include "image.h"
 #include "queue.h"
+#include "shared_mem.h"
 
 
 int validate(struct pixel* image, int width, int height)
@@ -18,7 +20,7 @@ int validate(struct pixel* image, int width, int height)
                 rv = 1;
             if(image[i*width+j].green != image[(i*width+j)%width].green)
                 rv = 1;
-            if(image[i*width+j].blue = image[(i*width+j)%width].blue)
+            if(image[i*width+j].blue != image[(i*width+j)%width].blue)
                 rv= 1;
         }
     }
@@ -29,7 +31,7 @@ int validate(struct pixel* image, int width, int height)
 int main(int argc, char **argv)
 {
     int width, height, shared_or_queue;
-    int packet_size, image_size, pixels_size, message_size;
+    size_t packet_size, image_size, pixels_size, message_size;
     queue_t* queue_ptr;
     char* queue_name = "tmp_QUEUE_GEN_CONV";    // from init.c
     if(argc<2)
@@ -57,7 +59,7 @@ int main(int argc, char **argv)
     int i = 1;
     while(1)
     {
-        void* buffer;
+        char* buffer;
         printf("%d\n", i);
         i++;
         if(shared_or_queue == 0)
@@ -73,6 +75,14 @@ int main(int argc, char **argv)
             if(ret != 0) {
                 continue;
             }
+            char* name = buffer;
+            buffer = get_shared_memory(name, packet_size);
+            if(buffer == NULL) {
+                printf("Failed to get shared memory %s\n", name);
+                delete_shared_memory(name); // Remove anyway
+                continue;    
+            }
+            delete_shared_memory(name);
         }
         void *copy_buffer;
         copy_buffer = malloc(pixels_size);
