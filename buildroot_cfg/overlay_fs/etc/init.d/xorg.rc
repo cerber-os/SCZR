@@ -1,0 +1,20 @@
+#!/bin/sh
+# Init script starting Xorg server
+
+mount -t tmpfs none /tmp
+mount -t proc none /proc
+mount -t sysfs none /sys
+
+# PTS required by Xorg
+mkdir /dev/pts
+mount -t devpts none /dev/pts
+
+# Shared memory
+mkdir -p /dev/shm
+mount -t tmpfs none /dev/shm
+
+echo "Low level init finished. Starting Xorg..."
+
+export DISPLAY=:0
+export XAUTHORITY=/root/.Xauthority
+/usr/bin/startx &

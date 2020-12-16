@@ -1,0 +1,2 @@
+::sysinit:/etc/init.d/xorg.rc
+::restart:/sbin/init
