@@ -86,14 +86,13 @@ int main(int argc, char** argv) {
     read(fd, cmdline, sizeof(cmdline));
     close(fd);
 
-    char* part = cmdline;
-    while((part = strsep(&part, " ")) != NULL) {
-        printf("[i] init: got `%s` option\n", part);
-        if(!strcmp(part, "mode=TRANSMITTER"))
-            mode = INIT_MODE_TRANSMITTER;
-        else if(!strcmp(part, "mode=RECEIVER"))
-            mode = INIT_MODE_RECEIVER;
-    }
+    printf("[i] init: cmdline - `%s`\n", cmdline);
+    if(!strstr(cmdline, "mode=TRANSMITTER"))
+        mode = INIT_MODE_TRANSMITTER;
+    else if(!strstr(cmdline, "mode=RECEIVER"))
+        mode = INIT_MODE_RECEIVER;
+    else
+        printf("[-] init: unknown mode - continue with transmitter\n");
     printf("[i] init: continue with mode %d\n", mode);
 
     // Setup queues

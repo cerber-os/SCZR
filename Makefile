@@ -22,7 +22,7 @@ utils_shared_mem: utils/shared_mem.c uapi/shared_mem.h
 	$(CC) $(CFLAGS) -I uapi/ -c -o out/shared_mem.o utils/shared_mem.c
 
 apps_init: apps/init/init.c utils_queue
-	$(CC) $(CFLAGS) -I uapi/ out/utils_queue.o -o out/our_init $< $(LIBS)
+	$(CC) $(CFLAGS) -I uapi/ out/utils_queue.o -o out/second_stage_init $< $(LIBS)
 
 apps_hypervisor: apps/hypervisor/hypervisor.c apps/hypervisor/graphics.c utils_queue
 	$(CC) $(CFLAGS) -c -o out/graphics.o apps/hypervisor/graphics.c

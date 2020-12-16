@@ -10,6 +10,10 @@ ir_device* ir_open(char* name)
 {
     struct termios term;
     int fd = open(name, O_RDWR);
+    if(fd < 0) {
+        perror("[-] device: failed to open file");
+        return NULL;
+    }
 
     tcgetattr(fd, &term);
 
@@ -25,7 +29,7 @@ ir_device* ir_open(char* name)
 
     ir_device* dev = malloc(sizeof(ir_device));
     if(dev == NULL) {
-        printf("Failed to allocate memory for ir_device\n");
+        printf("[-] device: Failed to allocate memory for ir_device\n");
         return NULL;
     }
 

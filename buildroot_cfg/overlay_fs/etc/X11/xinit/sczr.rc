@@ -6,4 +6,4 @@ export PATH="$PATH:/bin:/sbin:/usr/bin:/usr/sbin"
 export DISPLAY=:0
 export XAUTHORITY=/root/.Xauthority
 
-/sczr_init
+/second_stage_init
