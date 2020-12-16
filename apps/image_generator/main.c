@@ -6,20 +6,6 @@
 #include "image.h"
 #include "queue.h"
 
-void* create_shared_memory(size_t size) {
-  // Our memory buffer will be readable and writable:
-  int protection = PROT_READ | PROT_WRITE;
-
-  // The buffer will be shared (meaning other processes can access it), but
-  // anonymous (meaning third-party processes cannot obtain an address for it),
-  // so only this process and its children will be able to use it:
-  int visibility = MAP_SHARED | MAP_ANONYMOUS;
-
-  // The remaining parameters to `mmap()` are not important for this use case,
-  // but the manpage for `mmap` explains their purpose.
-  return mmap(NULL, size, protection, visibility, -1, 0);
-}
-
 struct pixel* generate_image(int width, int height)
 {
     struct pixel *image;
@@ -29,8 +15,8 @@ struct pixel* generate_image(int width, int height)
     for(int i=0; i<width; i++)
     {
         image[i].red = rand()%255;
-        image[i].green = rand()%255;
-        image[i].blue = rand()%255;
+        image[i].green = (image[i].red + 20)%255;
+        image[i].blue = (image[i].green + 20)%255;
     }
     // we fill the rest of rows
     for(int i=1; i<height; i++)
@@ -72,14 +58,13 @@ int main(int argc, char **argv)
     image_size = 2*sizeof(int) + pixels_size;
     packet_size = 2*sizeof(struct timespec) + image_size;
     message_size = sizeof(char*);
-    int rv = queue_create(queue_name, (size_t)(50*packet_size));	
+    int rv = queue_create(queue_name, (size_t)(50*message_size));	
     if(rv != QUEUE_OK)	
     {	
         printf("Failed to create queue");	
         return 0;	
     }
     queue_ptr = queue_acquire(queue_name, QUEUE_MASTER);
-    int i = 1;
     while(1)
     {
         struct timespec start = {0}, stop = {0};
@@ -116,9 +101,7 @@ int main(int argc, char **argv)
             (*data).stop = stop;
             queue_sync_write(queue_ptr, (char*)&data, sizeof(char*));
         }
-        printf("Message sent %d\n", i);
-        i++;
-        printf("%lld.%.9ld\n", (long long)stop.tv_sec, stop.tv_nsec);
+        printf("Message sent\n");
     }
     return 0;
 }

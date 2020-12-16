@@ -18,20 +18,19 @@ int validate(struct pixel* image, int width, int height)
                 rv = 1;
             if(image[i*width+j].green != image[(i*width+j)%width].green)
                 rv = 1;
-            if(image[i*width+j].blue = image[(i*width+j)%width].blue)
+            if(image[i*width+j].blue != image[(i*width+j)%width].blue)
                 rv= 1;
         }
     }
     return rv;
 }
 
-
 int main(int argc, char **argv)
 {
     int width, height, shared_or_queue;
-    int packet_size, image_size, pixels_size, message_size;
+    int packet_size, image_size, pixels_size, message_size, new_packet_size, new_new_new_packet_size, new_new_packet_size;
     queue_t* queue_ptr;
-    char* queue_name = "tmp_QUEUE_GEN_CONV";    // from init.c
+    char* queue_name = "tmp_QUEUE_VAL_CONV";    // from init.c
     if(argc<2)
     {
         printf("Not enough arguments\n");
@@ -52,17 +51,22 @@ int main(int argc, char **argv)
     pixels_size = width*height*sizeof(struct pixel);
     image_size = 2*sizeof(int) + pixels_size;
     packet_size = 2*sizeof(struct timespec) + image_size;
+    new_packet_size = 2*sizeof(struct timespec) + packet_size;
+    new_new_packet_size = 2*sizeof(struct timespec) + new_packet_size;
+    new_new_new_packet_size = 2*sizeof(struct timespec) + new_packet_size;
     message_size = sizeof(char*);
     queue_ptr = queue_acquire(queue_name, QUEUE_SLAVE);
-    int i = 1;
+    queue_t* queue_ptr_2;
+    char* queue_name_2 = "tmp_QUEUE_HYP_VAL";    // from init.c
+    queue_ptr_2 = queue_acquire(queue_name_2, QUEUE_SLAVE);
     while(1)
     {
         void* buffer;
-        printf("%d\n", i);
-        i++;
+        struct timespec start = {0}, stop = {0};
+        clock_gettime(CLOCK_REALTIME, &start);
         if(shared_or_queue == 0)
         {
-            int ret = queue_sync_read(queue_ptr, &buffer, &packet_size);
+            int ret = queue_sync_read(queue_ptr, &buffer, &new_new_packet_size);
             if(ret != 0) {
                 continue;
             }
@@ -76,16 +80,33 @@ int main(int argc, char **argv)
         }
         void *copy_buffer;
         copy_buffer = malloc(pixels_size);
-        memcpy(copy_buffer, buffer+2*(sizeof(struct timespec)+sizeof(int)), pixels_size);
+        memcpy(copy_buffer, buffer+(new_new_packet_size-pixels_size), pixels_size);
         int rv = validate((struct pixel*)copy_buffer, width, height);
         printf("RV value %d\n", rv);
+        struct packet* for_hypervisor;
+        for_hypervisor = malloc(new_new_new_packet_size);
+        memcpy((*for_hypervisor).data, buffer, new_packet_size);
+        (*for_hypervisor).start = start;
+        clock_gettime(CLOCK_REALTIME, &stop);
+        (*for_hypervisor).stop = stop;
+        if(shared_or_queue == 0)
+        {
+            queue_sync_write(queue_ptr_2, (char*)for_hypervisor, new_new_new_packet_size);
+            free(for_hypervisor);
+        }
+        else
+        {
+            void *data = (struct packet*) create_shared_memory(new_new_new_packet_size);
+            memcpy(data, for_hypervisor, new_new_new_packet_size);
+            queue_sync_write(queue_ptr_2, (char*)&data, sizeof(char*));
+        }
         if(shared_or_queue == 0)
         {
             free(buffer);
         }
         else
         {
-            munmap(buffer, packet_size);
+            munmap(buffer, new_new_packet_size);
         }
     }
     return 0;
