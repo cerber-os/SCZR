@@ -17,24 +17,22 @@ int main(int argc, char **argv)
     int width, height, shared_or_queue, trans_or_ret;
     size_t packet_size, message_size;
     int image_size, pixels_size, new_packet_size, new_new_packet_size;
-    queue_t* queue_ptr;
-    if(argc<3)
-    {
-        printf("Not enough arguments\n");
+
+    printf("[i] image_conv: started\n");
+
+    if(argc<3) {
+        printf("[i] image_conv: Not enough arguments\n");
         return 1;
     }
-    else if(argc<5)
-    {
-        printf("Not enough arguments. We will use default width and height\n");
+    else if(argc<5) {
+        printf("[i] image_conv: Not enough arguments. We will use default width and height\n");
         shared_or_queue = atoi(argv[1]);
         if(strcmp(argv[2],"mode=TRANSMITTER") == 0)
             trans_or_ret = 0;
         else
             trans_or_ret = 1;
         width = height = 2000;
-    }
-    else
-    {
+    } else {
         shared_or_queue = atoi(argv[1]);
         if(strcmp(argv[2],"mode=TRANSMITTER") == 0)
             trans_or_ret = 0;
@@ -43,36 +41,43 @@ int main(int argc, char **argv)
         width = atoi(argv[3]);
         height = atoi(argv[4]);
     }
+
     pixels_size = width*height*sizeof(struct pixel);
     image_size = 2*sizeof(int) + pixels_size;
     packet_size = 2*sizeof(struct timespec) + image_size;
     new_packet_size = 2*sizeof(struct timespec) + packet_size;
     new_new_packet_size = 2*sizeof(struct timespec) + new_packet_size;
     message_size = 128;
+
+    ir_device* arduino = ir_open("/dev/ttyACM0");   // TODO: Neither I do
+    if(arduino == NULL) {
+        printf("[i] image_conv: Failed to open arduino\n");
+        return 1;            
+    }
+
     // Now we "split" program into 2 sub-programms.
     // trans_or_ret == 0 means that we are in transmitter mode
-    if(trans_or_ret == 0)
-    {
-        char* queue_name = "tmp_QUEUE_GEN_CONV";    // from init.c
-        queue_ptr = queue_acquire(queue_name, QUEUE_SLAVE);
-        struct ir_device* arduino;
-        arduino = ir_open(NULL); // TODO - I DON'T KNOW THE PATH
+    if(trans_or_ret == 0) {
+        queue_t* queue_ptr = queue_acquire("tmp_QUEUE_GEN_CONV", QUEUE_SLAVE);
+        if(queue_ptr == NULL) {
+            printf("[-] image_conv: Failed to open queue `tmp_QUEUE_GEN_CONV`\n");
+            return 1;
+        }
+
         while(1)
         {
             struct timespec start = {0}, stop = {0};
             char* buffer;
             clock_gettime(CLOCK_REALTIME, &start);
+
             // shared_or_queue will be 0 if we want to transmit all data thru queue
-            if(shared_or_queue == 0)
-            {
+            if(shared_or_queue == 0) {
                 int ret = queue_sync_read(queue_ptr, &buffer, &packet_size);
                 if(ret != 0) {
-                    printf("err_ret = %d\n", ret);
+                    printf("[-] image_conv: queue_sync_read: err_ret = %d\n", ret);
                     continue;
                 }
-            }
-            else
-            {
+            } else {
                 int ret = queue_sync_read(queue_ptr, &buffer, &message_size);
                 if(ret != 0) {
                     continue;
@@ -80,13 +85,14 @@ int main(int argc, char **argv)
                 char* name = buffer;
                 buffer = get_shared_memory(name, packet_size);
                 if(buffer == NULL) {
-                    printf("Failed to get shared memory %s\n", name);
+                    printf("[-] image_conv: Failed to get shared memory %s\n", name);
                     delete_shared_memory(name); // Remove anyway
                     continue;    
                 }
                 delete_shared_memory(name);
             }
-            char* compress_buffer, decompress_buffer;
+            char* compress_buffer;
+            char* decompress_buffer;
             compress_buffer = malloc(packet_size);
             decompress_buffer = malloc(packet_size);
             memcpy(decompress_buffer, buffer, packet_size);
@@ -105,30 +111,32 @@ int main(int argc, char **argv)
             clock_gettime(CLOCK_REALTIME, &stop);
             for_arduino->stop = stop;
             if(new_packet_size != ir_write(arduino, (char*)for_arduino, new_packet_size))
-                printf("We failed to sent our packet to Arduino\n");
+                printf("[-] image_conv: failed to sent our packet to Arduino\n");
             free(for_arduino);
-            printf("Message processed\n");
+
+            printf("[i] image_conv: Message processed\n");
         }
-        ir_close(arduino);
-    }
-    else
-    {
-        char* queue_name = "tmp_QUEUE_VAL_CONV";    // from init.c
-        queue_ptr = queue_acquire(queue_name, QUEUE_MASTER);
-        struct ir_device* arduino;
-        arduino = ir_open(NULL); // TODO - I DON'T KNOW THE PATH
+    } else {
+        queue_t* queue_ptr = queue_acquire("tmp_QUEUE_VAL_CONV", QUEUE_MASTER);
+        if(queue_ptr == NULL) {
+            printf("[-] image_conv: Failed to open queue `tmp_QUEUE_GEN_CONV`\n");
+            return 1;
+        }
+
         for(int i = 0; 1; i++)
         {
             void *buffer;
             struct timespec start = {0}, stop = {0};
             clock_gettime(CLOCK_REALTIME, &start);
+
             buffer = malloc(new_packet_size);
             if(new_packet_size != ir_read(arduino, (char*)buffer, new_packet_size))
             {
-                printf("We failed to read our packet from Arduino\n");
+                printf("[-] image_conv: We failed to read our packet from Arduino\n");
                 continue;
             }
-            char* compress_buffer, decompress_buffer;
+            char* compress_buffer;
+            char* decompress_buffer;
             compress_buffer = malloc(new_packet_size);
             decompress_buffer = malloc(new_packet_size);
             memcpy(decompress_buffer, buffer, new_packet_size);
@@ -157,7 +165,7 @@ int main(int argc, char **argv)
                 snprintf(memory_name, sizeof(memory_name) - 1, "/shmem_conv_%d", i);
                 void* data = (struct packet*) create_shared_memory(memory_name, new_new_packet_size);
                 if(data == NULL) {
-                    printf("Failed to create shared memory!\n");
+                    printf("[-] image_conv: Failed to create shared memory!\n");
                     continue;
                 }
 

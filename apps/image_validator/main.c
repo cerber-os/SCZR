@@ -18,9 +18,9 @@ int validate(struct pixel* image, int width, int height)
         {
             if(image[i*width+j].red != image[(i*width+j)%width].red)
                 rv = 1;
-            if(image[i*width+j].green != image[(i*width+j)%width].green)
+            if(image[i*width+j].green != (image[(i*width+j)%width].red + 20) % 255)
                 rv = 1;
-            if(image[i*width+j].blue != image[(i*width+j)%width].blue)
+            if(image[i*width+j].blue != (image[(i*width+j)%width].red + 40) % 255)
                 rv= 1;
         }
     }
