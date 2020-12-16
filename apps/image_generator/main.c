@@ -4,7 +4,9 @@
 #include <sys/mman.h>
 #include <string.h>
 #include "image.h"
+
 #include "queue.h"
+#include "shared_mem.h"
 
 struct pixel* generate_image(int width, int height)
 {
@@ -33,6 +35,7 @@ struct pixel* generate_image(int width, int height)
 
 int main(int argc, char **argv)
 {
+    char memory_name[64] = {0,};
     int width, height, shared_or_queue;
     int packet_size, image_size, pixels_size, message_size;
     queue_t* queue_ptr;
@@ -93,13 +96,22 @@ int main(int argc, char **argv)
         }
         else
         {
-            data = (struct packet*) create_shared_memory(packet_size);
-            memcpy((*data).data, generated_image, image_size);
+            snprintf(memory_name, sizeof(memory_name) - 1, "/shmem_gen_%d", i);
+            data = (struct packet*) create_shared_memory(memory_name, packet_size);
+            if(data == NULL) {
+                printf("Failed to create shared memory!\n");
+                continue;
+            }
+
+            memcpy(data->data, generated_image, image_size);
             free(generated_image);
-            (*data).start = start;
+            data->start = start;
             clock_gettime(CLOCK_REALTIME, &stop);
-            (*data).stop = stop;
-            queue_sync_write(queue_ptr, (char*)&data, sizeof(char*));
+            data->stop = stop;
+            queue_sync_write(queue_ptr, memory_name, strlen(memory_name));
+            
+            // Release shared memory
+            munmap(data, packet_size);
         }
         printf("Message sent\n");
     }
