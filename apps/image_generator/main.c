@@ -61,12 +61,6 @@ int main(int argc, char **argv)
     image_size = 2*sizeof(int) + pixels_size;
     packet_size = 2*sizeof(struct timespec) + image_size;
     message_size = sizeof(char*);
-    int rv = queue_create(queue_name, (size_t)(50*message_size));	
-    if(rv != QUEUE_OK)	
-    {	
-        printf("Failed to create queue");	
-        return 0;	
-    }
     queue_ptr = queue_acquire(queue_name, QUEUE_MASTER);
     for(int i = 0; 1; i++)
     {
@@ -77,9 +71,9 @@ int main(int argc, char **argv)
         clock_gettime(CLOCK_REALTIME, &start);
         just_pixels = generate_image(width, height);
         generated_image = malloc(image_size);
-        (*generated_image).width = width;
-        (*generated_image).height = height;
-        memcpy((*generated_image).pixel_info, just_pixels, pixels_size);
+        generated_image->width = width;
+        generated_image->height = height;
+        memcpy(generated_image->pixel_info, just_pixels, pixels_size);
         free(just_pixels);
         // above we generated random image, now we need to send it
         // shared_or_queue will be 0 if we want to transmit all data thru queue
@@ -88,9 +82,9 @@ int main(int argc, char **argv)
             data = malloc(packet_size);
             memcpy((*data).data, generated_image, image_size);
             free(generated_image);
-            (*data).start = start;
+            data->start = start;
             clock_gettime(CLOCK_REALTIME, &stop);
-            (*data).stop = stop;
+            data->stop = stop;
             queue_sync_write(queue_ptr, (char*)data, packet_size);
             free(data);
         }
@@ -102,7 +96,7 @@ int main(int argc, char **argv)
                 printf("Failed to create shared memory!\n");
                 continue;
             }
-
+            
             memcpy(data->data, generated_image, image_size);
             free(generated_image);
             data->start = start;
