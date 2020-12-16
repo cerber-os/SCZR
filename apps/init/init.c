@@ -3,6 +3,7 @@
  * applications
  */
 
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -56,13 +57,13 @@ static const struct proc_queue queues[][INIT_QUEUES_COUNT] = {
 static const struct subprocess subprocesses[][INIT_PROCESSES_COUNT] = {
     [INIT_MODE_TRANSMITTER] = {
         {.id = PROC_HYPERVISOR, .path="hypervisor", .args={"hypervisor", "mode=TRANSMITTER", 0}},
-        {.id = PROC_IMAGE_GEN, .path="image_gen", .args={"image_gen", "0", "2000", "2000", 0}},
-        {.id = PROC_IMAGE_CONV, .path="image_conv", .args={"image_conv", "0", "mode=TRANSMITTER", "2000", "2000"}},
+        {.id = PROC_IMAGE_GEN, .path="image_generator", .args={"image_generator", "0", "160", "80", 0}},
+        {.id = PROC_IMAGE_CONV, .path="image_converter", .args={"image_converter", "0", "mode=TRANSMITTER", "160", "80"}},
     },
     [INIT_MODE_RECEIVER] = {
         {.id = PROC_HYPERVISOR, .path="hypervisor", .args={"hypervisor", "mode=RECEIVER", 0}},
-        {.id = PROC_IMAGE_VAL, .path="image_val", .args={"image_val", "0", "2000", "2000", 0}},
-        {.id = PROC_IMAGE_CONV, .path="image_conv", .args={"image_conv","0", "mode=RECEIVER", "2000", "2000"}},
+        {.id = PROC_IMAGE_VAL, .path="image_validator", .args={"image_val", "0", "160", "80", 0}},
+        {.id = PROC_IMAGE_CONV, .path="image_converter", .args={"image_conv","0", "mode=RECEIVER", "160", "80"}},
     }
 };
 
@@ -71,28 +72,29 @@ static char * const default_envp[] = {"DISPLAY=:0", "XAUTHORITY=/root/.Xauthorit
 
 
 int main(int argc, char** argv) {
+    char cmdline[1024];
     enum init_mode mode = INIT_MODE_TRANSMITTER;
 
-    printf("[i] init: started with argc #%d\n", argc);
+    printf("[i] init: started\n");
 
-    // Parse program options
-    for(int i = 1; i < argc; i++) {
-
-        if(!strncmp(argv[i], "mode=", sizeof("mode=") - 1)) {
-            const char* opt = argv[i] + sizeof("mode=") - 1;
-            if(!strcasecmp(opt, "TRANSMITTER"))
-                mode = INIT_MODE_TRANSMITTER;
-            else if(!strcasecmp(opt, "RECEIVER"))
-                mode = INIT_MODE_RECEIVER;
-            else {
-                fprintf(stderr, "Invalid mode provided - '%s'. Expected either TRANSMITTER or RECEIVER\n", opt);
-                exit(1);
-            }
-        } else {
-            fprintf(stderr, "Invalid option provided - '%s'\n", argv[i]);
-            exit(1);
-        }
+    // Check mode
+    int fd = open("/proc/cmdline", O_RDONLY, 0);
+    if(fd < 0) {
+        perror("[-] init: open /proc/cmdline failed");
+        exit(1);
     }
+    read(fd, cmdline, sizeof(cmdline));
+    close(fd);
+
+    char* part = cmdline;
+    while((part = strsep(&part, " ")) != NULL) {
+        printf("[i] init: got `%s` option\n", part);
+        if(!strcmp(part, "mode=TRANSMITTER"))
+            mode = INIT_MODE_TRANSMITTER;
+        else if(!strcmp(part, "mode=RECEIVER"))
+            mode = INIT_MODE_RECEIVER;
+    }
+    printf("[i] init: continue with mode %d\n", mode);
 
     // Setup queues
     printf("[i] init: setting up queues\n");
