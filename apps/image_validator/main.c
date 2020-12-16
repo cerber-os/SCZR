@@ -57,7 +57,7 @@ int main(int argc, char **argv)
     new_packet_size = 2*sizeof(struct timespec) + packet_size;
     new_new_packet_size = 2*sizeof(struct timespec) + new_packet_size;
     new_new_new_packet_size = 2*sizeof(struct timespec) + new_packet_size;
-    message_size = sizeof(char*);
+    message_size = 128;
     queue_ptr = queue_acquire(queue_name, QUEUE_SLAVE);
     queue_t* queue_ptr_2;
     char* queue_name_2 = "tmp_QUEUE_HYP_VAL";    // from init.c
@@ -120,7 +120,7 @@ int main(int argc, char **argv)
 
             memcpy(data, for_hypervisor, new_new_new_packet_size);
             free(for_hypervisor);
-            queue_sync_write(queue_ptr, memory_name, strlen(memory_name));
+            queue_sync_write(queue_ptr, memory_name, message_size);
 
             // Release shared memory
             munmap(data, new_new_new_packet_size);

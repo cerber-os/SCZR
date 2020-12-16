@@ -12,7 +12,7 @@
 
 int main(int argc, char **argv)
 {
-    char memory_name[128];
+    char memory_name[128] = {0,};
 
     int width, height, shared_or_queue, trans_or_ret;
     size_t packet_size, message_size;
@@ -48,7 +48,7 @@ int main(int argc, char **argv)
     packet_size = 2*sizeof(struct timespec) + image_size;
     new_packet_size = 2*sizeof(struct timespec) + packet_size;
     new_new_packet_size = 2*sizeof(struct timespec) + new_packet_size;
-    message_size = sizeof(struct packet*);
+    message_size = 128;
     // Now we "split" program into 2 sub-programms.
     // trans_or_ret == 0 means that we are in transmitter mode
     if(trans_or_ret == 0)
@@ -163,7 +163,7 @@ int main(int argc, char **argv)
 
                 memcpy(data, for_validator, new_new_packet_size);
                 free(for_validator);
-                queue_sync_write(queue_ptr, memory_name, strlen(memory_name));
+                queue_sync_write(queue_ptr, memory_name, message_size);
 
                 // Release shared memory
                 munmap(data, new_new_packet_size);
