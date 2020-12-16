@@ -19,7 +19,7 @@ enum init_mode {
 struct subprocess {
     int id;
     const char* path;
-    const char* args[4];
+    const char* args[7];
 };
 struct proc_queue {
     int from;
@@ -55,46 +55,25 @@ static const struct proc_queue queues[][INIT_QUEUES_COUNT] = {
 #define INIT_PROCESSES_COUNT    3
 static const struct subprocess subprocesses[][INIT_PROCESSES_COUNT] = {
     [INIT_MODE_TRANSMITTER] = {
-        {.id = PROC_HYPERVISOR, .path="hypervisor", .args={"mode=TRANSMITTER", 0}},
-        {.id = PROC_IMAGE_GEN, .path="image_gen", .args={"0", "2000", "2000", 0}},
-        {.id = PROC_IMAGE_CONV, .path="image_conv", .args={"0", "mode=TRANSMITTER", "2000", "2000"}},
+        {.id = PROC_HYPERVISOR, .path="hypervisor", .args={"hypervisor", "mode=TRANSMITTER", 0}},
+        {.id = PROC_IMAGE_GEN, .path="image_gen", .args={"image_gen", "0", "2000", "2000", 0}},
+        {.id = PROC_IMAGE_CONV, .path="image_conv", .args={"image_conv", "0", "mode=TRANSMITTER", "2000", "2000"}},
     },
     [INIT_MODE_RECEIVER] = {
-        {.id = PROC_HYPERVISOR, .path="hypervisor", .args={"mode=RECEIVER", 0}},
-        {.id = PROC_IMAGE_VAL, .path="image_val", .args={"0", "2000", "2000", 0}},
-        {.id = PROC_IMAGE_CONV, .path="image_conv", .args={"0", "mode=RECEIVER", "2000", "2000"}},
+        {.id = PROC_HYPERVISOR, .path="hypervisor", .args={"hypervisor", "mode=RECEIVER", 0}},
+        {.id = PROC_IMAGE_VAL, .path="image_val", .args={"image_val", "0", "2000", "2000", 0}},
+        {.id = PROC_IMAGE_CONV, .path="image_conv", .args={"image_conv","0", "mode=RECEIVER", "2000", "2000"}},
     }
 };
 
+static char * const default_envp[] = {"DISPLAY=:0", "XAUTHORITY=/root/.Xauthority", 0};
 
-static int error_exit(int error_code) {
-    exit(error_code);
-}
-
-
-static void low_level_init(void) {
-    static const char* init_commands[] = {
-        // Mount basic filesystems
-        "mount -t tmpfs none /tmp",
-        "mount -t proc none /proc",
-        "mount -t sysfs none /sys",
-
-        // pts is requires for Xorg
-        "mkdir /dev/pts",
-        "mount -t devpts none /dev/pts",
-    };
-
-    for(int i = 0; i < ARRAY_SIZE(init_commands); i++) {
-        int ret = system(init_commands[i]);
-        if(ret != 0) {
-            fprintf(stderr, "Warning: Command '%s' failed with error %d\n", init_commands[i], ret);
-        }
-    }
-}
 
 
 int main(int argc, char** argv) {
     enum init_mode mode = INIT_MODE_TRANSMITTER;
+
+    printf("[i] init: started with argc #%d\n", argc);
 
     // Parse program options
     for(int i = 1; i < argc; i++) {
@@ -107,20 +86,16 @@ int main(int argc, char** argv) {
                 mode = INIT_MODE_RECEIVER;
             else {
                 fprintf(stderr, "Invalid mode provided - '%s'. Expected either TRANSMITTER or RECEIVER\n", opt);
-                error_exit(1);
+                exit(1);
             }
         } else {
             fprintf(stderr, "Invalid option provided - '%s'\n", argv[i]);
-            error_exit(1);
+            exit(1);
         }
     }
 
-    // If we're running as root (QEMU scenario), perform low level init
-    if(getuid() == 0) {
-        low_level_init();
-    }
-
     // Setup queues
+    printf("[i] init: setting up queues\n");
     for(int i = 0; i < INIT_QUEUES_COUNT; i++) {
         const struct proc_queue* q = &queues[mode][i];
         char path[256];
@@ -130,7 +105,7 @@ int main(int argc, char** argv) {
         int ret = queue_create(path, INIT_QUEUE_SIZE);
         if(ret < 0) {
             fprintf(stderr, "Failed to setup queue - '%s'\n", path);
-            error_exit(1);
+            exit(1);
         }
     }
 
@@ -138,10 +113,14 @@ int main(int argc, char** argv) {
     for(int i = 0; i < INIT_PROCESSES_COUNT; i++) {
         int pid = fork();
         if(pid == 0) {
-            execve(subprocesses[mode][i].path, (char *const*)subprocesses[mode][i].args, NULL);
+            printf("[i] init: starting %s...\n", subprocesses[mode][i].path);
+            execve(subprocesses[mode][i].path, (char *const*)subprocesses[mode][i].args, default_envp);
+
+            printf("[i] init: failed to start %s \n", subprocesses[mode][i].path);
+            exit(1);
         } else if (pid < 0) {
-            perror("[-] init: fork failed");
-            error_exit(1);
+            perror("[-] init: fork failed\n");
+            exit(1);
         }
     }
 

@@ -5,6 +5,9 @@ LIBS=-lrt -lpthread
 all: utils_queue utils_fastlz utils_device apps_init \
 	apps_hypervisor apps_image_generator apps_image_converter \
 	apps_image_validator utils_shared_mem
+	mkdir -p buildroot_cfg/overlay_fs
+	cp out/* buildroot_cfg/overlay_fs
+	rm buildroot_cfg/overlay_fs/*.o
 
 utils_queue: utils/queue.c uapi/queue.h
 	$(CC) $(CFLAGS) -I uapi/ -c -o out/utils_queue.o utils/queue.c
@@ -19,10 +22,11 @@ utils_shared_mem: utils/shared_mem.c uapi/shared_mem.h
 	$(CC) $(CFLAGS) -I uapi/ -c -o out/shared_mem.o utils/shared_mem.c
 
 apps_init: apps/init/init.c utils_queue
-	$(CC) $(CFLAGS) -I uapi/ out/utils_queue.o -o out/init $< $(LIBS)
+	$(CC) $(CFLAGS) -I uapi/ out/utils_queue.o -o out/our_init $< $(LIBS)
 
-apps_hypervisor: apps/hypervisor/hypervisor.c utils_queue
-	$(CC) $(CFLAGS) -I uapi/ out/utils_queue.o -o out/hypervisor $< $(LIBS)
+apps_hypervisor: apps/hypervisor/hypervisor.c apps/hypervisor/graphics.c utils_queue
+	$(CC) $(CFLAGS) -c -o out/graphics.o apps/hypervisor/graphics.c
+	$(CC) $(CFLAGS) -I uapi/ out/utils_queue.o out/graphics.o -o out/hypervisor $< $(LIBS) -lX11
 
 apps_image_generator: apps/image_generator/main.c utils_queue utils_shared_mem
 	$(CC) $(CFLAGS) -I uapi/ out/utils_queue.o out/shared_mem.o -o out/image_generator $< $(LIBS)
