@@ -68,7 +68,7 @@ int main(int argc, char **argv)
         return 0;	
     }
     queue_ptr = queue_acquire(queue_name, QUEUE_MASTER);
-    while(1)
+    for(int i = 0; 1; i++)
     {
         struct timespec start = {0}, stop = {0};
         struct image* generated_image;

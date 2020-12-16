@@ -3,13 +3,17 @@
 #include <time.h>
 #include <string.h>
 #include <sys/mman.h>
+
 #include "image.h"
 #include "queue.h"
 #include "fastlz.h"
 #include "device.h"
+#include "shared_mem.h"
 
 int main(int argc, char **argv)
 {
+    char memory_name[128];
+
     int width, height, shared_or_queue, trans_or_ret;
     size_t packet_size, message_size;
     int image_size, pixels_size, new_packet_size, new_new_packet_size;
@@ -57,7 +61,7 @@ int main(int argc, char **argv)
         {
             struct timespec start = {0}, stop = {0};
             clock_gettime(CLOCK_REALTIME, &start);
-            void* buffer;
+            char* buffer;
             // shared_or_queue will be 0 if we want to transmit all data thru queue
             if(shared_or_queue == 0)
             {
@@ -71,9 +75,16 @@ int main(int argc, char **argv)
             {
                 int ret = queue_sync_read(queue_ptr, &buffer, &message_size);
                 if(ret != 0) {
-                    printf("err_ret = %d\n", ret);
                     continue;
                 }
+                char* name = buffer;
+                buffer = get_shared_memory(name, packet_size);
+                if(buffer == NULL) {
+                    printf("Failed to get shared memory %s\n", name);
+                    delete_shared_memory(name); // Remove anyway
+                    continue;    
+                }
+                delete_shared_memory(name);
             }
             void *compress_buffer, *decompress_buffer;
             compress_buffer = malloc(packet_size);
@@ -106,7 +117,7 @@ int main(int argc, char **argv)
         queue_ptr = queue_acquire(queue_name, QUEUE_MASTER);
         struct ir_device* arduino;
         arduino = ir_open(NULL); // TODO - I DON'T KNOW THE PATH
-        while(1)
+        for(int i = 0; 1; i++)
         {
             void *buffer;
             struct timespec start = {0}, stop = {0};
@@ -133,6 +144,7 @@ int main(int argc, char **argv)
             (*for_validator).start = start;
             clock_gettime(CLOCK_REALTIME, &stop);
             (*for_validator).stop = stop;
+
             if(shared_or_queue == 0)
             {
                 queue_sync_write(queue_ptr, (char*)for_validator, new_new_packet_size);
@@ -140,9 +152,18 @@ int main(int argc, char **argv)
             }
             else
             {
-                void *data = (struct packet*) create_shared_memory(new_new_packet_size);
+                snprintf(memory_name, sizeof(memory_name) - 1, "/shmem_val_%d", i);
+                void* data = (struct packet*) create_shared_memory(memory_name, new_new_packet_size);
+                if(data == NULL) {
+                    printf("Failed to create shared memory!\n");
+                    continue;
+                }
+
                 memcpy(data, for_validator, new_new_packet_size);
-                queue_sync_write(queue_ptr, (char*)&data, sizeof(char*));
+                queue_sync_write(queue_ptr, memory_name, strlen(memory_name));
+
+                // Release shared memory
+                munmap(data, packet_size);
             }
         }
     }

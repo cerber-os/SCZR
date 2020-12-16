@@ -100,17 +100,10 @@ int main(int argc, char **argv)
         (*for_hypervisor).start = start;
         clock_gettime(CLOCK_REALTIME, &stop);
         (*for_hypervisor).stop = stop;
-        if(shared_or_queue == 0)
-        {
-            queue_sync_write(queue_ptr_2, (char*)for_hypervisor, new_new_new_packet_size);
-            free(for_hypervisor);
-        }
-        else
-        {
-            void *data = (struct packet*) create_shared_memory(new_new_new_packet_size);
-            memcpy(data, for_hypervisor, new_new_new_packet_size);
-            queue_sync_write(queue_ptr_2, (char*)&data, sizeof(char*));
-        }
+
+        queue_sync_write(queue_ptr_2, (char*)for_hypervisor, new_new_new_packet_size);
+        free(for_hypervisor);
+        
         if(shared_or_queue == 0)
         {
             free(buffer);

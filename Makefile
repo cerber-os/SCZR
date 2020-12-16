@@ -28,7 +28,7 @@ apps_image_generator: apps/image_generator/main.c utils_queue utils_shared_mem
 	$(CC) $(CFLAGS) -I uapi/ out/utils_queue.o out/shared_mem.o -o out/image_generator $< $(LIBS)
 
 apps_image_converter: apps/image_converter/main.c utils_queue utils_fastlz utils_device
-	$(CC) $(CFLAGS) -I uapi/ out/utils_queue.o out/utils_fastlz.o out/utils_device.o -o out/image_converter $< $(LIBS)
+	$(CC) $(CFLAGS) -I uapi/ out/utils_queue.o out/shared_mem.o out/utils_fastlz.o out/utils_device.o -o out/image_converter $< $(LIBS)
 
 apps_image_validator: apps/image_validator/main.c utils_queue utils_shared_mem
 	$(CC) $(CFLAGS) -I uapi/ out/utils_queue.o out/shared_mem.o -o out/image_validator $< $(LIBS)
