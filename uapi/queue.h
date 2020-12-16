@@ -131,3 +131,10 @@ int queue_sync_write(queue_t* queue, char* buffer, size_t size);
  *           QUEUE_ERETRY if queue is currently full
  */
 int queue_async_write(queue_t* queue, char* buffer, size_t size);
+
+/* 
+ * Return number of messages present in SEND queue
+ *  @queue: pointer to queue object
+ *  @return: number of elements on SEND queue
+ */
+int queue_get_pending(queue_t* queue);

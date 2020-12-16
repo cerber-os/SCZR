@@ -318,3 +318,11 @@ int queue_async_write(queue_t* queue, char* buffer, size_t size) {
         sem_post(&write_q->sem_packets);
     return ret;
 }
+
+int queue_get_pending(queue_t* queue) {
+    struct queue_body* write_q = get_write_queue(queue->header, queue->mode);
+    int ret_val;
+
+    sem_getvalue(&write_q->sem_packets, &ret_val);
+    return ret_val;
+}
