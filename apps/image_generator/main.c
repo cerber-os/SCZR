@@ -35,7 +35,7 @@ struct pixel* generate_image(int width, int height)
 
 int main(int argc, char **argv)
 {
-    char memory_name[64] = {0,};
+    char memory_name[128] = {0,};
     int width, height, shared_or_queue;
     int packet_size, image_size, pixels_size, message_size;
     queue_t* queue_ptr;
@@ -60,13 +60,7 @@ int main(int argc, char **argv)
     pixels_size = width*height*sizeof(struct pixel);
     image_size = 2*sizeof(int) + pixels_size;
     packet_size = 2*sizeof(struct timespec) + image_size;
-    message_size = sizeof(char*);
-    int rv = queue_create(queue_name, (size_t)(50*message_size));	
-    if(rv != QUEUE_OK)	
-    {	
-        printf("Failed to create queue");	
-        return 0;	
-    }
+    message_size = 128;
     queue_ptr = queue_acquire(queue_name, QUEUE_MASTER);
     for(int i = 0; 1; i++)
     {
@@ -77,20 +71,20 @@ int main(int argc, char **argv)
         clock_gettime(CLOCK_REALTIME, &start);
         just_pixels = generate_image(width, height);
         generated_image = malloc(image_size);
-        (*generated_image).width = width;
-        (*generated_image).height = height;
-        memcpy((*generated_image).pixel_info, just_pixels, pixels_size);
+        generated_image->width = width;
+        generated_image->height = height;
+        memcpy(generated_image->pixel_info, just_pixels, pixels_size);
         free(just_pixels);
         // above we generated random image, now we need to send it
         // shared_or_queue will be 0 if we want to transmit all data thru queue
         if(shared_or_queue == 0)
         {
             data = malloc(packet_size);
-            memcpy((*data).data, generated_image, image_size);
+            memcpy(data->data, generated_image, image_size);
             free(generated_image);
-            (*data).start = start;
+            data->start = start;
             clock_gettime(CLOCK_REALTIME, &stop);
-            (*data).stop = stop;
+            data->stop = stop;
             queue_sync_write(queue_ptr, (char*)data, packet_size);
             free(data);
         }
@@ -108,7 +102,7 @@ int main(int argc, char **argv)
             data->start = start;
             clock_gettime(CLOCK_REALTIME, &stop);
             data->stop = stop;
-            queue_sync_write(queue_ptr, memory_name, strlen(memory_name));
+            queue_sync_write(queue_ptr, memory_name, message_size);
             
             // Release shared memory
             munmap(data, packet_size);

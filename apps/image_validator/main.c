@@ -29,6 +29,7 @@ int validate(struct pixel* image, int width, int height)
 
 int main(int argc, char **argv)
 {
+    char memory_name[128] = {0,};
     int width, height, shared_or_queue;
     size_t packet_size, image_size, pixels_size, message_size, new_packet_size, new_new_new_packet_size, new_new_packet_size;
     queue_t* queue_ptr;
@@ -55,19 +56,19 @@ int main(int argc, char **argv)
     packet_size = 2*sizeof(struct timespec) + image_size;
     new_packet_size = 2*sizeof(struct timespec) + packet_size;
     new_new_packet_size = 2*sizeof(struct timespec) + new_packet_size;
-    new_new_new_packet_size = 2*sizeof(struct timespec) + new_packet_size;
-    message_size = sizeof(char*);
+    new_new_new_packet_size = 2*sizeof(struct timespec) + new_new_packet_size;
+    message_size = 128;
     queue_ptr = queue_acquire(queue_name, QUEUE_SLAVE);
     queue_t* queue_ptr_2;
     char* queue_name_2 = "tmp_QUEUE_HYP_VAL";    // from init.c
     queue_ptr_2 = queue_acquire(queue_name_2, QUEUE_SLAVE);
-    while(1)
+    for(int i = 0; 1; i++)
     {
         char* buffer;
         struct timespec start = {0}, stop = {0};
         clock_gettime(CLOCK_REALTIME, &start);
 
-	if(shared_or_queue == 0)
+	    if(shared_or_queue == 0)
         {
             int ret = queue_sync_read(queue_ptr, &buffer, &new_new_packet_size);
             if(ret != 0) {
@@ -81,7 +82,7 @@ int main(int argc, char **argv)
                 continue;
             }
             char* name = buffer;
-            buffer = get_shared_memory(name, packet_size);
+            buffer = get_shared_memory(name, new_new_packet_size);
             if(buffer == NULL) {
                 printf("Failed to get shared memory %s\n", name);
                 delete_shared_memory(name); // Remove anyway
@@ -93,24 +94,36 @@ int main(int argc, char **argv)
         copy_buffer = malloc(pixels_size);
         memcpy(copy_buffer, buffer+(new_new_packet_size-pixels_size), pixels_size);
         int rv = validate((struct pixel*)copy_buffer, width, height);
+        free(copy_buffer);
         printf("RV value %d\n", rv);
         struct packet* for_hypervisor;
         for_hypervisor = malloc(new_new_new_packet_size);
-        memcpy((*for_hypervisor).data, buffer, new_packet_size);
-        (*for_hypervisor).start = start;
+        memcpy(for_hypervisor->data, buffer, new_new_packet_size);
+        free(buffer);
+        for_hypervisor->start = start;
         clock_gettime(CLOCK_REALTIME, &stop);
-        (*for_hypervisor).stop = stop;
-
-        queue_sync_write(queue_ptr_2, (char*)for_hypervisor, new_new_new_packet_size);
-        free(for_hypervisor);
+        for_hypervisor->stop = stop;
         
         if(shared_or_queue == 0)
         {
-            free(buffer);
+            queue_sync_write(queue_ptr_2, (char*)for_hypervisor, new_new_new_packet_size);
+            free(for_hypervisor);
         }
         else
         {
-            munmap(buffer, new_new_packet_size);
+            snprintf(memory_name, sizeof(memory_name) - 1, "/shmem_val_%d", i);
+            void* data = (struct packet*) create_shared_memory(memory_name, new_new_new_packet_size);
+            if(data == NULL) {
+                printf("Failed to create shared memory!\n");
+                continue;
+            }
+
+            memcpy(data, for_hypervisor, new_new_new_packet_size);
+            free(for_hypervisor);
+            queue_sync_write(queue_ptr, memory_name, message_size);
+
+            // Release shared memory
+            munmap(data, new_new_new_packet_size);
         }
     }
     return 0;

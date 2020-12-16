@@ -12,7 +12,7 @@
 
 int main(int argc, char **argv)
 {
-    char memory_name[128];
+    char memory_name[128] = {0,};
 
     int width, height, shared_or_queue, trans_or_ret;
     size_t packet_size, message_size;
@@ -48,7 +48,7 @@ int main(int argc, char **argv)
     packet_size = 2*sizeof(struct timespec) + image_size;
     new_packet_size = 2*sizeof(struct timespec) + packet_size;
     new_new_packet_size = 2*sizeof(struct timespec) + new_packet_size;
-    message_size = sizeof(struct packet*);
+    message_size = 128;
     // Now we "split" program into 2 sub-programms.
     // trans_or_ret == 0 means that we are in transmitter mode
     if(trans_or_ret == 0)
@@ -60,8 +60,8 @@ int main(int argc, char **argv)
         while(1)
         {
             struct timespec start = {0}, stop = {0};
-            clock_gettime(CLOCK_REALTIME, &start);
             char* buffer;
+            clock_gettime(CLOCK_REALTIME, &start);
             // shared_or_queue will be 0 if we want to transmit all data thru queue
             if(shared_or_queue == 0)
             {
@@ -86,27 +86,27 @@ int main(int argc, char **argv)
                 }
                 delete_shared_memory(name);
             }
-            void *compress_buffer, *decompress_buffer;
+            char* compress_buffer, decompress_buffer;
             compress_buffer = malloc(packet_size);
             decompress_buffer = malloc(packet_size);
             memcpy(decompress_buffer, buffer, packet_size);
             for(int i=0; i<5; i++)
             {
-                int rv = fastlz_compress_level(2, (void*)decompress_buffer, packet_size, compress_buffer);
-                rv = fastlz_decompress(compress_buffer, rv, decompress_buffer, packet_size);
+                int rv = fastlz_compress_level(2, (void*)decompress_buffer, packet_size, (void*)compress_buffer);
+                rv = fastlz_decompress((void*)compress_buffer, rv, (void*)decompress_buffer, packet_size);
             }
+            free(decompress_buffer);
+            free(compress_buffer);
             struct packet* for_arduino;
             for_arduino = malloc(new_packet_size);
-            memcpy((*for_arduino).data, buffer, packet_size);
-            (*for_arduino).start = start;
+            memcpy(for_arduino->data, buffer, packet_size);
+            free(buffer);
+            for_arduino->start = start;
             clock_gettime(CLOCK_REALTIME, &stop);
-            (*for_arduino).stop = stop;
+            for_arduino->stop = stop;
             if(new_packet_size != ir_write(arduino, (char*)for_arduino, new_packet_size))
                 printf("We failed to sent our packet to Arduino\n");
-            if(shared_or_queue == 0)
-                free(buffer);
-            else
-                munmap(buffer, packet_size);
+            free(for_arduino);
             printf("Message processed\n");
         }
         ir_close(arduino);
@@ -128,22 +128,24 @@ int main(int argc, char **argv)
                 printf("We failed to read our packet from Arduino\n");
                 continue;
             }
-            void *compress_buffer, *decompress_buffer;
+            char* compress_buffer, decompress_buffer;
             compress_buffer = malloc(new_packet_size);
             decompress_buffer = malloc(new_packet_size);
             memcpy(decompress_buffer, buffer, new_packet_size);
             for(int i=0; i<5; i++)
             {
-                int rv = fastlz_compress_level(2, (void*)decompress_buffer, new_packet_size, compress_buffer);
-                rv = fastlz_decompress(compress_buffer, rv, decompress_buffer, new_packet_size);
+                int rv = fastlz_compress_level(2, (void*)decompress_buffer, new_packet_size, (void*)compress_buffer);
+                rv = fastlz_decompress((void*)compress_buffer, rv, (void*)decompress_buffer, new_packet_size);
             }
+            free(decompress_buffer);
+            free(compress_buffer);
             struct packet* for_validator;
             for_validator = malloc(new_new_packet_size);
-            memcpy((*for_validator).data, buffer, new_packet_size);
+            memcpy(for_validator->data, buffer, new_packet_size);
             free(buffer);
-            (*for_validator).start = start;
+            for_validator->start = start;
             clock_gettime(CLOCK_REALTIME, &stop);
-            (*for_validator).stop = stop;
+            for_validator->stop = stop;
 
             if(shared_or_queue == 0)
             {
@@ -152,7 +154,7 @@ int main(int argc, char **argv)
             }
             else
             {
-                snprintf(memory_name, sizeof(memory_name) - 1, "/shmem_val_%d", i);
+                snprintf(memory_name, sizeof(memory_name) - 1, "/shmem_conv_%d", i);
                 void* data = (struct packet*) create_shared_memory(memory_name, new_new_packet_size);
                 if(data == NULL) {
                     printf("Failed to create shared memory!\n");
@@ -160,10 +162,11 @@ int main(int argc, char **argv)
                 }
 
                 memcpy(data, for_validator, new_new_packet_size);
-                queue_sync_write(queue_ptr, memory_name, strlen(memory_name));
+                free(for_validator);
+                queue_sync_write(queue_ptr, memory_name, message_size);
 
                 // Release shared memory
-                munmap(data, packet_size);
+                munmap(data, new_new_packet_size);
             }
         }
     }
