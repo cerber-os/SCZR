@@ -1,5 +1,6 @@
 #include <fcntl.h>
 #include <stdio.h>
+#include <string.h>
 #include <termios.h>
 #include <unistd.h>
 
@@ -38,20 +39,32 @@ ir_device* ir_open(char* name)
 }
 
 
-int ir_read(ir_device* dev, char* buffer, size_t size)
+int ir_read(ir_device* dev, void* buffer, size_t size)
 {
+    if(dev == NULL) {
+        memset(buffer, 0, size);
+        return size;
+    }
     return read(dev->fd, buffer, size);
 }
 
 
-int ir_write(ir_device* dev, char* buffer, size_t size)
+int ir_write(ir_device* dev, void* buffer, size_t size)
 {
-    return write(dev->fd, buffer, size);
+    if(dev == NULL)
+        return size;
+    
+    int ret = write(dev->fd, buffer, size);
+    usleep(1000);
+    tcflush(dev->fd,TCIOFLUSH);
+    return ret;
 }
 
 
 void ir_close(ir_device* dev)
 {
+    if(dev == NULL)
+        return;
     close(dev->fd);
     free(dev);
 }

@@ -26,6 +26,7 @@ struct proc_queue {
     int from;
     int to;
     const char* name;
+    int uid;
 };
 
 /*
@@ -42,32 +43,33 @@ enum process_ids {
 #define INIT_QUEUES_COUNT    3
 static const struct proc_queue queues[][INIT_QUEUES_COUNT] = {
     [INIT_MODE_TRANSMITTER] = {
-        {.from = PROC_HYPERVISOR, .to = PROC_IMAGE_GEN, .name="HYP_GEN"},
-        {.from = PROC_HYPERVISOR, .to = PROC_IMAGE_CONV, .name="HYP_CONV"},
-        {.from = PROC_IMAGE_GEN,  .to = PROC_IMAGE_CONV, .name="GEN_CONV"},
+        {.uid = 0, .from = PROC_HYPERVISOR, .to = PROC_IMAGE_GEN, .name="HYP_GEN"},
+        {.uid = 1, .from = PROC_HYPERVISOR, .to = PROC_IMAGE_CONV, .name="HYP_CONV"},
+        {.uid = 2, .from = PROC_IMAGE_GEN,  .to = PROC_IMAGE_CONV, .name="GEN_CONV"},
     },
     [INIT_MODE_RECEIVER] = {
-        {.from = PROC_HYPERVISOR, .to = PROC_IMAGE_VAL, .name="HYP_VAL"},
-        {.from = PROC_HYPERVISOR, .to = PROC_IMAGE_CONV, .name="HYP_CONV"},
-        {.from = PROC_IMAGE_VAL,  .to = PROC_IMAGE_CONV, .name="VAL_CONV"},
+        {.uid = 0, .from = PROC_HYPERVISOR, .to = PROC_IMAGE_VAL, .name="HYP_VAL"},
+        {.uid = 1, .from = PROC_HYPERVISOR, .to = PROC_IMAGE_CONV, .name="HYP_CONV"},
+        {.uid = 2, .from = PROC_IMAGE_VAL,  .to = PROC_IMAGE_CONV, .name="VAL_CONV"},
     }
 };
 
 #define INIT_PROCESSES_COUNT    3
 static const struct subprocess subprocesses[][INIT_PROCESSES_COUNT] = {
     [INIT_MODE_TRANSMITTER] = {
-        {.id = PROC_HYPERVISOR, .path="hypervisor", .args={"hypervisor", "mode=TRANSMITTER", 0}},
-        {.id = PROC_IMAGE_GEN, .path="image_generator", .args={"image_generator", "0", "160", "80", 0}},
-        {.id = PROC_IMAGE_CONV, .path="image_converter", .args={"image_converter", "0", "mode=TRANSMITTER", "160", "80"}},
+        {.id = PROC_HYPERVISOR, .path="hypervisor", .args={"hypervisor", "mode=TRANSMITTER"}},
+        {.id = PROC_IMAGE_GEN, .path="image_generator", .args={"image_generator", "160", "80"}},
+        {.id = PROC_IMAGE_CONV, .path="image_converter", .args={"image_converter", "mode=TRANSMITTER", "160", "80"}},
     },
     [INIT_MODE_RECEIVER] = {
-        {.id = PROC_HYPERVISOR, .path="hypervisor", .args={"hypervisor", "mode=RECEIVER", 0}},
-        {.id = PROC_IMAGE_VAL, .path="image_validator", .args={"image_val", "0", "160", "80", 0}},
-        {.id = PROC_IMAGE_CONV, .path="image_converter", .args={"image_conv","0", "mode=RECEIVER", "160", "80"}},
+        {.id = PROC_HYPERVISOR, .path="hypervisor", .args={"hypervisor", "mode=RECEIVER"}},
+        {.id = PROC_IMAGE_VAL, .path="image_validator", .args={"image_val", "160", "80"}},
+        {.id = PROC_IMAGE_CONV, .path="image_converter", .args={"image_conv", "mode=RECEIVER", "160", "80"}},
     }
 };
 
-static char * const default_envp[] = {"DISPLAY=:0", "XAUTHORITY=/root/.Xauthority", 0};
+extern char** environ;
+// static char * const default_envp[] = {"DISPLAY=:0", "XAUTHORITY=/root/.Xauthority", 0};
 
 
 
@@ -87,9 +89,9 @@ int main(int argc, char** argv) {
     close(fd);
 
     printf("[i] init: cmdline - `%s`\n", cmdline);
-    if(!strstr(cmdline, "mode=TRANSMITTER"))
+    if(strstr(cmdline, "mode=TRANSMITTER"))
         mode = INIT_MODE_TRANSMITTER;
-    else if(!strstr(cmdline, "mode=RECEIVER"))
+    else if(strstr(cmdline, "mode=RECEIVER"))
         mode = INIT_MODE_RECEIVER;
     else
         printf("[-] init: unknown mode - continue with transmitter\n");
@@ -103,11 +105,18 @@ int main(int argc, char** argv) {
         strcpy(path, "/tmp_QUEUE_");
         strcpy(path + sizeof("/tmp_QUEUE_") - 1, q->name);
 
-        int ret = queue_create(path, INIT_QUEUE_SIZE);
+        int ret = queue_create(path, INIT_QUEUE_SIZE, q->uid);
         if(ret < 0) {
             fprintf(stderr, "Failed to setup queue - '%s'\n", path);
             exit(1);
+        } else {
+            printf("[i] init: Created queue %s\n", path);
         }
+    }
+
+    if(argc >= 2 && strstr(argv[1], "skip_spawn")) {
+        printf("[i] init: Queues created - skipping processes spawn\n");
+        return 0;
     }
 
     // Start processes
@@ -115,7 +124,7 @@ int main(int argc, char** argv) {
         int pid = fork();
         if(pid == 0) {
             printf("[i] init: starting %s...\n", subprocesses[mode][i].path);
-            execve(subprocesses[mode][i].path, (char *const*)subprocesses[mode][i].args, default_envp);
+            execve(subprocesses[mode][i].path, (char *const*)subprocesses[mode][i].args, environ);
 
             printf("[i] init: failed to start %s \n", subprocesses[mode][i].path);
             exit(1);

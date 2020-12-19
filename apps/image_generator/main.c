@@ -7,19 +7,18 @@
 
 #include "queue.h"
 #include "shared_mem.h"
+#include "misc.h"
 
-struct pixel* generate_image(int width, int height)
+void generate_image(struct packet* packet, int width, int height)
 {
-    struct pixel *image;
-    image = malloc(width*height*sizeof(struct pixel));
-    srand(time(0));
+    struct pixel *image = (struct pixel*) packet->data;
 
     // we need to fill first row with random colors
     for(int i=0; i<width; i++)
     {
         image[i].red = rand()%255;
         image[i].green = (image[i].red + 20) % 255;
-        image[i].blue = (image[i].green + 20)  %255;
+        image[i].blue = (image[i].green + 20) % 255;
     }
 
     // we fill the rest of rows
@@ -32,92 +31,53 @@ struct pixel* generate_image(int width, int height)
             image[i*width+j].blue = image[(i*width+j)%width].blue;
         }
     }
-    return image;
 }
 
 int main(int argc, char **argv)
 {
-    char memory_name[128] = {0,};
-    int width, height, shared_or_queue;
-    size_t packet_size, image_size, pixels_size, message_size;
-
+    int width, height;
     printf("[i] image_gen: started\n");
+    srand(time(0));
 
-    if(argc<2)
-    {
-        printf("[-] image_gen: Not enough arguments\n");
-        return 1;
-    } else if(argc < 4) {
-        printf("[i] image_gen: Not enough arguments. We will use default width and height\n");
-        shared_or_queue = atoi(argv[1]);
+    if(argc < 3) {
+        printf("[i] image_gen: using default width and height (2000x2000)\n");
         width = height = 2000;
     } else {
-        shared_or_queue = atoi(argv[1]);
-        width = atoi(argv[2]);
-        height = atoi(argv[3]);
+        width = atoi(argv[1]);
+        height = atoi(argv[2]);
     }
 
-    pixels_size = width*height*sizeof(struct pixel);
-    image_size = 2*sizeof(int) + pixels_size;
-    packet_size = 2*sizeof(struct timespec) + image_size;
-    message_size = 128;
+    const size_t packet_size = IMAGE_SIZE(width, height) + sizeof(struct packet);
+    struct packet* packet = malloc(packet_size);
+    if(packet == NULL) {
+        printf("[i] image_gen: failed to allocate packet buffer\n");
+        return 1;
+    }
 
-    queue_t* queue_ptr = queue_acquire("tmp_QUEUE_GEN_CONV", QUEUE_MASTER);
-    if(queue_ptr == NULL) {
+    queue_t* queue_to_conv = queue_acquire("tmp_QUEUE_GEN_CONV", QUEUE_MASTER);
+    if(queue_to_conv == NULL) {
         printf("[-] image_gen: failed to acquire queue `tmp_QUEUE_GEN_CONV`\n");
         return 1;
     }
 
     for(int i = 0; 1; i++)
     {
-        struct timespec start = {0}, stop = {0};
-        struct image* generated_image;
-        struct pixel* just_pixels;
-        struct packet* data;
+        memset(packet, 0, packet_size);
 
-        clock_gettime(CLOCK_REALTIME, &start);
-        just_pixels = generate_image(width, height);
-        generated_image = malloc(image_size);
-        generated_image->width = width;
-        generated_image->height = height;
-        memcpy(generated_image->pixel_info, just_pixels, pixels_size);
-        free(just_pixels);
+        set_start_time_now(packet, STAGE_T_GENERATOR);
 
-        // above we generated random image, now we need to send it
-        // shared_or_queue will be 0 if we want to transmit all data thru queue
-        if(shared_or_queue == 0)
-        {
-            data = malloc(packet_size);
-            memcpy(data->data, generated_image, image_size);
-            free(generated_image);
-            data->start = start;
-            clock_gettime(CLOCK_REALTIME, &stop);
-            data->stop = stop;
-            queue_sync_write(queue_ptr, (char*)data, packet_size);
-            free(data);
-        } else {
-            snprintf(memory_name, sizeof(memory_name) - 1, "/shmem_gen_%d", i);
-            data = (struct packet*) create_shared_memory(memory_name, packet_size);
-            if(data == NULL) {
-                printf("[-] image_gen: failed to create shared memory!\n");
-                continue;
-            }
+        generate_image(packet, width, height);
+        queue_sync_write(queue_to_conv, packet, packet_size);
 
-            memcpy(data->data, generated_image, image_size);
-            free(generated_image);
-            data->start = start;
-            clock_gettime(CLOCK_REALTIME, &stop);
-            data->stop = stop;
-            queue_sync_write(queue_ptr, memory_name, message_size);
-            
-            // Release shared memory
-            munmap(data, packet_size);
-        }
+        set_stop_time_now(packet, STAGE_T_GENERATOR);
 
         printf("[i] image_gen: message sent\n");
 
-        while(queue_get_pending(queue_ptr) > 0)
+        // Wait, till converter receives an image
+        while(queue_get_pending(queue_to_conv) > 0)
             usleep(50 * 1000);
     }
+
+    free(packet);
     return 0;
 }

@@ -15,7 +15,16 @@
 
 #include "queue.h"
 
-int queue_create(const char* path, size_t size) {
+static void* queue_pointers[] = {
+    (void*) 0x1122334000,
+    (void*) 0x5566778000,
+    (void*) 0x99aabbc000,
+    (void*) 0x77aabbc000,
+    (void*) 0x88aabbc000,
+    (void*) 0xddeeff0000,
+};
+
+int queue_create(const char* path, size_t size, int uid) {
     int memfd = shm_open(path, O_CREAT | O_TRUNC | O_RDWR, 0755);
     if(memfd < 0) {
         perror("[-] queue: shm_open failed");
@@ -31,10 +40,10 @@ int queue_create(const char* path, size_t size) {
         return QUEUE_EFAULT;
     }
 
-    void* addr = mmap(QUEUE_MMAP_ADDR, 
+    void* addr = mmap(queue_pointers[uid], 
                     memory_size, 
                     PROT_READ | PROT_WRITE, 
-                    MAP_SHARED, 
+                    MAP_SHARED | MAP_FIXED, 
                     memfd, 0);
     if(addr == MAP_FAILED) {
         perror("[-] queue: mmap failed");
@@ -45,6 +54,7 @@ int queue_create(const char* path, size_t size) {
     // Initialize queue header
     struct queue_header* header = (struct queue_header*) addr;
     header->full_size = memory_size;
+    header->uid = uid;
 
     pthread_mutexattr_t attrmutex;
 
@@ -56,7 +66,12 @@ int queue_create(const char* path, size_t size) {
     sem_init(&header->queue_a.sem_packets, 1, 0);
     header->queue_a.first = header->queue_a.last = NULL;
     header->queue_a.data_size = size;
-    header->queue_b.data = addr + sizeof(*header);
+    header->queue_a.data = addr + sizeof(*header);
+    pthread_mutexattr_destroy(&attrmutex);
+
+    /* .. and for another mutex */
+    pthread_mutexattr_init(&attrmutex);
+    pthread_mutexattr_setpshared(&attrmutex, PTHREAD_PROCESS_SHARED);
     
     pthread_mutex_init(&header->queue_b.lock, &attrmutex);
     sem_init(&header->queue_b.sem_packets, 1, 0);
@@ -95,7 +110,7 @@ queue_t* queue_acquire(const char* path, int mode) {
 
     // Mmap only header on shared memory
     size_t header_size = sizeof(struct queue_header);
-    void* addr = mmap(QUEUE_MMAP_ADDR, header_size, 
+    void* addr = mmap(NULL, header_size, 
                     PROT_READ | PROT_WRITE, MAP_SHARED, memfd, 0);
     if(addr == MAP_FAILED) {
         perror("[-] queue (acquire): mmap failed");
@@ -104,10 +119,12 @@ queue_t* queue_acquire(const char* path, int mode) {
     }
 
     // Read size of queue memory and reallocate buffer
+    int uid = ((struct queue_header*) addr)->uid;
     size_t memory_size = ((struct queue_header*) addr)->full_size;
     munmap(addr, header_size);
-    addr = mmap(QUEUE_MMAP_ADDR, memory_size, 
-                    PROT_READ | PROT_WRITE, MAP_SHARED, memfd, 0);
+    
+    addr = mmap(queue_pointers[uid], memory_size, 
+                    PROT_READ | PROT_WRITE, MAP_SHARED | MAP_FIXED, memfd, 0);
     if(addr == MAP_FAILED) {
         perror("[-] queue (acquire): (re)mmap failed");
         close(memfd);
@@ -143,7 +160,7 @@ static struct queue_body* get_write_queue(struct queue_header* header, int mode)
         return &header->queue_a;
 }
 
-static int _queue_read(queue_t* queue, char** buffer, size_t* outSize) {
+static int _queue_read(queue_t* queue, void** buffer, size_t* outSize) {
     struct queue_body* read_q = get_read_queue(queue->header, queue->mode);
     assert(read_q->first != NULL);
 
@@ -178,7 +195,7 @@ static int _queue_read(queue_t* queue, char** buffer, size_t* outSize) {
 }
 
 
-int queue_sync_read(queue_t* queue, char** buffer, size_t* outSize) {
+int queue_sync_read(queue_t* queue, void** buffer, size_t* outSize) {
     int ret = QUEUE_OK;
     struct queue_body* read_q = get_read_queue(queue->header, queue->mode);
     
@@ -193,7 +210,7 @@ int queue_sync_read(queue_t* queue, char** buffer, size_t* outSize) {
 }
 
 
-int queue_async_read(queue_t* queue, char** buffer, size_t* outSize) {
+int queue_async_read(queue_t* queue, void** buffer, size_t* outSize) {
     int ret = QUEUE_OK;
     struct queue_body* read_q = get_read_queue(queue->header, queue->mode);
     
@@ -220,7 +237,7 @@ static void* _queue_get_packet_end(struct queue_body* body, struct queue_element
     }
 }
 
-static int _queue_write(queue_t* queue, char* buffer, size_t size) {
+static int _queue_write(queue_t* queue, void* buffer, size_t size) {
     struct queue_body* write_q = get_write_queue(queue->header, queue->mode);
 
     char* last_end = NULL;
@@ -287,7 +304,7 @@ static int _queue_write(queue_t* queue, char* buffer, size_t size) {
 }
 
 
-int queue_sync_write(queue_t* queue, char* buffer, size_t size) {
+int queue_sync_write(queue_t* queue, void* buffer, size_t size) {
     int ret = QUEUE_OK;
     struct queue_body* write_q = get_write_queue(queue->header, queue->mode);
 
@@ -306,7 +323,7 @@ int queue_sync_write(queue_t* queue, char* buffer, size_t size) {
 }
 
 
-int queue_async_write(queue_t* queue, char* buffer, size_t size) {
+int queue_async_write(queue_t* queue, void* buffer, size_t size) {
     int ret = QUEUE_OK;
     struct queue_body* write_q = get_write_queue(queue->header, queue->mode);
 
