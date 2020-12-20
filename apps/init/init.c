@@ -13,6 +13,14 @@
 
 #define ARRAY_SIZE(X)      (sizeof(X) / sizeof(X[0]))
 
+/*
+ * Program config
+ */
+#define IMAGE_WIDTH_S        "160"
+#define IMAGE_HEIGHT_S       "80"
+#define IMAGE_DIM_S          "160","80"
+
+
 enum init_mode {
     INIT_MODE_TRANSMITTER = 0,
     INIT_MODE_RECEIVER = 1
@@ -57,20 +65,18 @@ static const struct proc_queue queues[][INIT_QUEUES_COUNT] = {
 #define INIT_PROCESSES_COUNT    3
 static const struct subprocess subprocesses[][INIT_PROCESSES_COUNT] = {
     [INIT_MODE_TRANSMITTER] = {
-        {.id = PROC_HYPERVISOR, .path="hypervisor", .args={"hypervisor", "mode=TRANSMITTER"}},
-        {.id = PROC_IMAGE_GEN, .path="image_generator", .args={"image_generator", "160", "80"}},
-        {.id = PROC_IMAGE_CONV, .path="image_converter", .args={"image_converter", "mode=TRANSMITTER", "160", "80"}},
+        {.id = PROC_HYPERVISOR, .path="hypervisor", .args={"hypervisor", "mode=TRANSMITTER", IMAGE_DIM_S}},
+        {.id = PROC_IMAGE_GEN, .path="image_generator", .args={"image_generator", IMAGE_DIM_S}},
+        {.id = PROC_IMAGE_CONV, .path="image_converter", .args={"image_converter", "mode=TRANSMITTER", IMAGE_DIM_S}},
     },
     [INIT_MODE_RECEIVER] = {
-        {.id = PROC_HYPERVISOR, .path="hypervisor", .args={"hypervisor", "mode=RECEIVER"}},
-        {.id = PROC_IMAGE_VAL, .path="image_validator", .args={"image_val", "160", "80"}},
-        {.id = PROC_IMAGE_CONV, .path="image_converter", .args={"image_conv", "mode=RECEIVER", "160", "80"}},
+        {.id = PROC_HYPERVISOR, .path="hypervisor", .args={"hypervisor", "mode=RECEIVER", IMAGE_DIM_S}},
+        {.id = PROC_IMAGE_VAL, .path="image_validator", .args={"image_val", IMAGE_DIM_S}},
+        {.id = PROC_IMAGE_CONV, .path="image_converter", .args={"image_conv", "mode=RECEIVER", IMAGE_DIM_S}},
     }
 };
 
 extern char** environ;
-// static char * const default_envp[] = {"DISPLAY=:0", "XAUTHORITY=/root/.Xauthority", 0};
-
 
 
 int main(int argc, char** argv) {
