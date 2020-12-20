@@ -25,3 +25,5 @@ void set_stop_time(struct packet* packet, unsigned int stage_no, struct timespec
 long time_spent_in_one_stage_us(struct packet*, unsigned int);
 long time_spent_in_stages_us(struct packet*, unsigned int, unsigned int);
 long time_between_stages_us(struct packet*, unsigned int, unsigned int);
+long time_start_stage_us(struct packet* packet, unsigned int stage_no);
+long time_stop_stage_us(struct packet* packet, unsigned int stage_no);

@@ -10,6 +10,9 @@
 #include "graphics.h"
 #include "image.h"
 #include "queue.h"
+#include "misc.h"
+
+#define TIME_MODULO         1000000000UL 
 
 enum hyp_mode {
     MODE_TRANSMITTER = 0,
@@ -17,89 +20,151 @@ enum hyp_mode {
 };
 int mode;
 
+
 char* window_title[] = {"TRANSMITTER", "RECEIVER"};
 hyp_window* win;
 
-queue_t* q_hyp_gen;
+int image_width, image_height;
 
+void dump_stats(struct packet* packet) {
+    static long i = 0;
+    char* titles[] = {
+        "No.",
+        "GEN_START", "GEN_STOP", "GEN_DIFF",
+        "CONV_T_START", "CONV_T_STOP", "CONV_T_DIFF",
+        "CONV_R_START", "CONV_R_STOP", "CONV_R_DIFF",
+        "VAL_START", "VAL_STOP", "VAL_DIFF",
+        "QUEUE_GEN_CONV", "QUEUE_CONV_CONV", "QUEUE_CONV_VAL",
+        "TOTAL_DIFF"
+    };
 
-char* messages [][3] = {
-{"Generator stats (diff) = 1","Compressor stats (diff) = 4","Speed (B) = 7200bytes/sec (0.2 IMG/s)"},
-};
+    if(i == 0) {
+        for(int i = 0; i < sizeof(titles) / sizeof(titles[0]); i++)
+            printf("%s;", titles[i]);
+        printf("\n");
+    }
 
+    printf("%ld;", i++);
+    printf("%ld;%ld;%ld;", 
+            time_start_stage_us(packet, STAGE_T_GENERATOR),
+            time_stop_stage_us(packet, STAGE_T_GENERATOR),
+            time_spent_in_one_stage_us(packet, STAGE_T_GENERATOR));
+    printf("%ld;%ld;%ld;", 
+            time_start_stage_us(packet, STAGE_T_CONV),
+            time_stop_stage_us(packet, STAGE_T_CONV),
+            time_spent_in_one_stage_us(packet, STAGE_T_CONV));
+    printf("%ld;%ld;%ld;", 
+            time_start_stage_us(packet, STAGE_R_CONV),
+            time_stop_stage_us(packet, STAGE_R_CONV),
+            time_spent_in_one_stage_us(packet, STAGE_R_CONV));
+    printf("%ld;%ld;%ld;", 
+            time_start_stage_us(packet, STAGE_R_VALIDATOR),
+            time_stop_stage_us(packet, STAGE_R_VALIDATOR),
+            time_spent_in_one_stage_us(packet, STAGE_R_VALIDATOR));
+    printf("%ld;%ld;%ld;",
+            time_between_stages_us(packet, STAGE_T_GENERATOR, STAGE_T_CONV),
+            time_between_stages_us(packet, STAGE_T_CONV, STAGE_R_CONV),
+            time_between_stages_us(packet, STAGE_R_CONV, STAGE_R_VALIDATOR));
+    printf("%ld\n",
+            time_between_stages_us(packet, STAGE_T_GENERATOR, STAGE_R_VALIDATOR));
 
-char* messages2 [][5] = {
-{"Validator stats (diff) = 5369","Compressor stats (diff) = 4203","Latency = 2","Speed (B) = 7200bytes/sec (0.2 IMG/s)", "result: OK"},
-};
+}
 
-int stat_gen, stats_comp, stats_val, stats_comp_2, stats_latency, stats_result;
-
-void window_task() {
-    char line[128];
+void window_task(struct packet* packet) {
+    char line[256];
 
     // Title at the top
     draw_string(win, 10, 10, window_title[mode]);
 
     // Image section
-    int image_width = 200;
-    struct pixel* img = malloc(200 * 80 * sizeof(struct pixel));
-    draw_image(win, 5, 20, image_width, 80, img);
-    free(img);
+    struct pixel* img = (struct pixel*)packet->data;
+    draw_image(win, 5, 20, image_width, image_height, img);
 
 
     // Stats section
-    const int stats_start = 25;
-    draw_string(win, image_width + 10, stats_start, "Statistics:");
-    draw_string(win, image_width + 10, stats_start + 11, "IMG format = 200 x 80 x 24bit");
-    draw_string(win, image_width + 10, stats_start + 22, "Interface baudrate = 76800/s");
+    int stats_start = 25;
+    draw_string(win, image_width + 10, stats_start, "Statistics:"); stats_start += 11;
+    snprintf(line, sizeof(line) - 1, "IMG format = %d x %d x 24bit", image_width, image_height);
+    draw_string(win, image_width + 10, stats_start, line); stats_start += 11;
+    draw_string(win, image_width + 10, stats_start, "Interface baudrate = xxxxx/s"); stats_start += 11;
 
     if (mode == MODE_TRANSMITTER) {
-        snprintf(line, sizeof(line) - 1, "Generator stats (diff) = %d", stat_gen);
-        draw_string(win, image_width + 10, stats_start + 33,line);
-        snprintf(line, sizeof(line) - 1, "Compressor stats (diff) = %d", stats_comp);
-        draw_string(win, image_width + 10, stats_start + 44, line);
-        draw_string(win, image_width + 10, stats_start + 55, "Speed (B) = 7200bytes/sec (0.2 IMG/s)");
-    }else {
-        snprintf(line, sizeof(line) - 1, "Validator stats (diff) = %d", stats_val);
-        draw_string(win, image_width + 10, stats_start + 33, line);
-        snprintf(line, sizeof(line) - 1, "Compressor stats (diff) = %d", stats_comp_2);
-        draw_string(win, image_width + 10, stats_start + 44, line);
-        snprintf(line, sizeof(line) - 1, "Latency stats (diff) = %d", stats_latency);
-        draw_string(win, image_width + 10, stats_start + 55, line);
-        draw_string(win, image_width + 10, stats_start + 66, "Speed (B) = 7200bytes/sec (0.2 IMG/s)");
-        if(!stats_result)
+        snprintf(line, sizeof(line) - 1, "Generator:      start=%ld end=%ld diff=%ld",
+                time_start_stage_us(packet, STAGE_T_GENERATOR) % TIME_MODULO,
+                time_stop_stage_us(packet, STAGE_T_GENERATOR) % TIME_MODULO,
+                time_spent_in_one_stage_us(packet, STAGE_T_GENERATOR));
+        draw_string(win, image_width + 10, stats_start,line); stats_start += 11;
+
+        snprintf(line, sizeof(line) - 1, "Queue gen_conv: diff=%ld",
+                time_between_stages_us(packet, STAGE_T_GENERATOR, STAGE_T_CONV));
+        draw_string(win, image_width + 10, stats_start, line); stats_start += 11;
+
+        snprintf(line, sizeof(line) - 1, "Converter:      start=%ld end=%ld diff=%ld",
+                time_start_stage_us(packet, STAGE_T_CONV) % TIME_MODULO,
+                time_stop_stage_us(packet, STAGE_T_CONV) % TIME_MODULO,
+                time_spent_in_one_stage_us(packet, STAGE_T_CONV));
+        draw_string(win, image_width + 10, stats_start, line); stats_start += 11;
+
+    } else {
+        snprintf(line, sizeof(line) - 1, "Arduino pipe:   diff=%ld",
+                time_between_stages_us(packet, STAGE_T_CONV, STAGE_R_CONV));
+        draw_string(win, image_width + 10, stats_start,line); stats_start += 11;
+
+        snprintf(line, sizeof(line) - 1, "Converter:      start=%ld end=%ld diff=%ld",
+                time_start_stage_us(packet, STAGE_R_CONV) % TIME_MODULO,
+                time_stop_stage_us(packet, STAGE_R_CONV) % TIME_MODULO,
+                time_spent_in_one_stage_us(packet, STAGE_R_CONV));
+        draw_string(win, image_width + 10, stats_start,line); stats_start += 11;
+
+        snprintf(line, sizeof(line) - 1, "Queue conv_val: diff=%ld",
+                time_between_stages_us(packet, STAGE_R_CONV, STAGE_R_VALIDATOR));
+        draw_string(win, image_width + 10, stats_start,line); stats_start += 11;
+
+        snprintf(line, sizeof(line) - 1, "Validator:      start=%ld end=%ld diff=%ld",
+                time_start_stage_us(packet, STAGE_R_VALIDATOR) % TIME_MODULO,
+                time_stop_stage_us(packet, STAGE_R_VALIDATOR) % TIME_MODULO,
+                time_spent_in_one_stage_us(packet, STAGE_R_VALIDATOR));
+        draw_string(win, image_width + 10, stats_start,line); stats_start += 11;
+
+        snprintf(line, sizeof(line) - 1, "Total:          start=%ld end =%ld diff=%ld",
+                time_start_stage_us(packet, STAGE_T_GENERATOR) % TIME_MODULO,
+                time_stop_stage_us(packet, STAGE_R_VALIDATOR) % TIME_MODULO,
+                time_between_stages_us(packet, STAGE_T_GENERATOR, STAGE_R_VALIDATOR));
+        draw_string(win, image_width + 10, stats_start,line); stats_start += 11;
+
+        // TODO: Result
+        /*if(!stats_result)
             draw_string(win, image_width + 10, stats_start + 77, "Result: Ok");
         else
-            draw_string(win, image_width + 10, stats_start + 77, "Result: FAIL");
+            draw_string(win, image_width + 10, stats_start + 77, "Result: FAIL");*/
     }
 }
 
-int stats_task(queue_t* queue_client) {
+struct packet* stats_task(queue_t* queue_client) {
     char* buffer;
     size_t size;
 
-    int ret = queue_async_read(queue_client, (void**)&buffer, &size);
+    int ret = queue_sync_read(queue_client, (void**)&buffer, &size);
     if(ret == 0) {
-        printf("[i] hypervisor: Got a new message - %zu\n", size);
-        // TODO
-        free(buffer);
+        // printf("[i] hypervisor: Got a new message - %zu\n", size);
+        return (struct packet*) buffer;
     }
-    return 0;
+    return NULL;
 }
 
 int main(int argc, char** argv) {
-    srand(0);
     fprintf(stderr, "[i] hypervisor: started\n");
     
-    for(int i = 1; i < argc; i++) {
-        if(!strcmp(argv[i], "mode=TRANSMITTER")) 
+    if(argc < 4) {
+        printf("[-] hypervisor: missing arguments\n");
+        return 1;
+    } else {
+        if(strstr(argv[1], "mode=TRANSMITTER"))
             mode = MODE_TRANSMITTER;
-        else if(!strcmp(argv[i], "mode=RECEIVER"))
+        else
             mode = MODE_RECEIVER;
-        else {
-            fprintf(stderr, "[-] hypervisor: Invalid option was provided '%s'\n", argv[i]);
-            exit(1);
-        }
+        image_width = atoi(argv[2]);
+        image_height = atoi(argv[3]);
     }
 
     win = init_window();
@@ -123,16 +188,18 @@ int main(int argc, char** argv) {
         }
     }   
 
-
-    window_task();
-
     while(1) {
-        clear_screen(win);
-        window_task();
-        XSync(win->display, False);
-        stats_task(queue_client);
+        struct packet* packet = stats_task(queue_client);
+        if(packet == NULL)
+            continue;
 
-        usleep(1000 * 1000);     // 099s
+        dump_stats(packet);
+
+        clear_screen(win);
+        window_task(packet);
+        XSync(win->display, False);
+
+        free(packet);
     }
 
     close_window(win);

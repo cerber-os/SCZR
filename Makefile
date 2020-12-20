@@ -27,9 +27,9 @@ utils_misc: utils/misc.c uapi/misc.h
 apps_init: apps/init/init.c utils_queue
 	$(CC) $(CFLAGS) -I uapi/ out/utils_queue.o out/shared_mem.o -o out/second_stage_init $< $(LIBS)
 
-apps_hypervisor: apps/hypervisor/hypervisor.c apps/hypervisor/graphics.c utils_queue
+apps_hypervisor: apps/hypervisor/hypervisor.c apps/hypervisor/graphics.c utils_queue utils_misc
 	$(CC) $(CFLAGS) -I uapi/ -c -o out/graphics.o apps/hypervisor/graphics.c
-	$(CC) $(CFLAGS) -I uapi/ out/utils_queue.o out/shared_mem.o out/graphics.o -o out/hypervisor $< $(LIBS) -lX11
+	$(CC) $(CFLAGS) -I uapi/ out/utils_queue.o out/shared_mem.o out/graphics.o out/misc.o -o out/hypervisor $< $(LIBS) -lX11
 
 apps_image_generator: apps/image_generator/main.c utils_queue utils_shared_mem utils_misc
 	$(CC) $(CFLAGS) -I uapi/ out/utils_queue.o out/shared_mem.o out/misc.o -o out/image_generator $< $(LIBS)
