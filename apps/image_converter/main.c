@@ -50,8 +50,7 @@ int main(int argc, char **argv)
     struct packet* packet;
     size_t packet_size;
     const size_t expected_packet_size = IMAGE_SIZE(width, height) + sizeof(struct packet);
-    const size_t header_size = sizeof(struct packet) - 4*sizeof(char);
-    const size_t image_size = IMAGE_SIZE(width, height);
+    const size_t image_size = IMAGE_SIZE(width, height) * 4;
 
     // Now we "split" program into 2 sub-programms.
     // trans_or_ret == 0 means that we are in transmitter mode
@@ -71,13 +70,15 @@ int main(int argc, char **argv)
         for(int i = 0; 1; i++)
         {
             struct timespec start;
-            clock_gettime(CLOCK_REALTIME, &start);
 
             int ret = queue_sync_read(queue_from_gen, (void**) &packet, &packet_size);
             if(ret != 0) {
                 printf("[-] image_conv: queue_sync_read: err_ret = %d\n", ret);
                 continue;
             }
+
+            clock_gettime(CLOCK_REALTIME, &start);
+
             if(packet_size != expected_packet_size) {
                 printf("[-] image_conv: invalid packet size - Got: %zu; expected: %zu\n", packet_size, expected_packet_size);
                 free(packet);
@@ -87,7 +88,7 @@ int main(int argc, char **argv)
             {
                 char *image_ptr = packet->data;
                 int compressed_buffer_size = packet_size;
-                for(int i = 0; i < 5; i++)
+                for(int i = 0; i < 1; i++)
                 {
                     void *ptr;
                     compressed_buffer_size = fastlz_compress_level(2, (void*)image_ptr, compressed_buffer_size, (void*)compress_buffer);
@@ -108,7 +109,7 @@ int main(int argc, char **argv)
 
             set_start_time(packet, STAGE_T_CONV, &start);
             set_stop_time_now(packet, STAGE_T_CONV);
-            
+
             size_t already_sent = 0;
             while(already_sent < packet_size)
                 already_sent += ir_write(arduino, 
@@ -155,40 +156,41 @@ int main(int argc, char **argv)
                 else
                     found_start = 0;
             }
-            size_t part_size = 4;
 
-            if(header_size == ir_read(arduino, (char*)arduino_input + part_size, header_size))
-            {
-                compressed_buffer_size = packet->compressed_buffer_size;
-                part_size += header_size;
-            }
-            else
-                continue;          
+            // Read packet header to obtain compressed data ssize
+            size_t part_size = 4;
+            while(part_size < sizeof(struct packet))
+                part_size += ir_read(arduino, (char*)arduino_input + part_size, sizeof(struct packet) - part_size);
+            compressed_buffer_size = packet->compressed_buffer_size;
 
             // Start time messurement after receiving the whole correct header
             clock_gettime(CLOCK_REALTIME, &start);
 
-            while(part_size < compressed_buffer_size)
-                part_size += ir_read(arduino, (char*)arduino_input + part_size, compressed_buffer_size - part_size);
-            
+            size_t sub_part_size = 0;
+            while(sub_part_size < compressed_buffer_size)
+                sub_part_size += ir_read(arduino, (char*)packet->data + sub_part_size, compressed_buffer_size - sub_part_size);
+
             clock_gettime(CLOCK_REALTIME, &start_processing);
         
             {
                 char *image_ptr = packet->data;
-                for(int i = 0; i < 5; i++)
+                for(int i = 0; i < 1; i++)
                 {
                     void *ptr;
                     compressed_buffer_size = fastlz_decompress((void*)image_ptr, compressed_buffer_size, (void*)decompress_buffer, image_size);
+                    printf("%d: compressed_buffer_size = %d\n", i, compressed_buffer_size);
                     ptr = image_ptr;
                     image_ptr = decompress_buffer;
                     decompress_buffer = ptr;
                 }
 
-                if(compressed_buffer_size != image_size)
-                {
-                    printf("[-] image_conv: failed to decompress image\n");
+                if(compressed_buffer_size == 0) {
+                    printf("[-] failed to decompress\n");
                     continue;
                 }
+
+                if(compressed_buffer_size != image_size/4)
+                    printf("[w] image_conv: size mismatch - comp: %d; img: %lu\n", compressed_buffer_size, image_size/4);
 
                 if (packet->data != image_ptr)
                 {
