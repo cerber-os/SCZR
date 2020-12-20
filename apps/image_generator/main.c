@@ -83,10 +83,10 @@ int main(int argc, char **argv)
         set_start_time_now(packet, STAGE_T_GENERATOR);
 
         generate_image(packet, width, height, number_of_iterations);
-        queue_sync_write(queue_to_conv, packet, packet_size);
 
         set_stop_time_now(packet, STAGE_T_GENERATOR);
 
+        queue_sync_write(queue_to_conv, packet, packet_size);
         printf("[i] image_gen: message sent\n");
 
         // Wait, till converter receives an image

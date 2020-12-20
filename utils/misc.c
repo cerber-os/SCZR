@@ -19,12 +19,12 @@ void set_stop_time_now(struct packet* packet, unsigned int stage_no) {
 
 void set_start_time(struct packet* packet, unsigned int stage_no, struct timespec* time) {
     assert(stage_no < NUMBER_OF_STAGES);
-    memcpy(&packet->timestamps[stage_no].start, time, sizeof(struct timespect*));
+    memcpy(&packet->timestamps[stage_no].start, time, sizeof(struct timespec));
 }
 
 void set_stop_time(struct packet* packet, unsigned int stage_no, struct timespec* time) {
     assert(stage_no < NUMBER_OF_STAGES);
-    memcpy(&packet->timestamps[stage_no].stop, time, sizeof(struct timespect*));
+    memcpy(&packet->timestamps[stage_no].stop, time, sizeof(struct timespec));
 }
 
 
@@ -58,4 +58,18 @@ long time_between_stages_us(struct packet* packet, unsigned int stage_start, uns
     assert(stage_end < NUMBER_OF_STAGES);
 
     return time_diff_us(&packet->timestamps[stage_start].start, &packet->timestamps[stage_end].stop);
+}
+
+long time_start_stage_us(struct packet* packet, unsigned int stage_no) {
+    assert(stage_no < NUMBER_OF_STAGES);
+    struct timespec* start = &packet->timestamps[stage_no].start;
+
+    return start->tv_sec * 1000 * 1000 + start->tv_nsec / 1000;
+}
+
+long time_stop_stage_us(struct packet* packet, unsigned int stage_no) {
+    assert(stage_no < NUMBER_OF_STAGES);
+    struct timespec* end = &packet->timestamps[stage_no].stop;
+
+    return end->tv_sec * 1000 * 1000 + end->tv_nsec / 1000;
 }
