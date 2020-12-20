@@ -19,17 +19,18 @@ struct packet {
         struct timespec start;
         struct timespec stop;
     } timestamps[NUMBER_OF_STAGES];
+    int valid_result;
     int compressed_buffer_size; 
 
     char data[0];
-};
+} __attribute__((packed));
 
 void set_start_time_now(struct packet*, unsigned int);
 void set_stop_time_now(struct packet*, unsigned int);
-void set_start_time(struct packet* packet, unsigned int stage_no, struct timespec* time);
-void set_stop_time(struct packet* packet, unsigned int stage_no, struct timespec* time);
+void set_start_time(struct packet*, unsigned int, struct timespec*);
+void set_stop_time(struct packet*, unsigned int, struct timespec*);
 long time_spent_in_one_stage_us(struct packet*, unsigned int);
 long time_spent_in_stages_us(struct packet*, unsigned int, unsigned int);
 long time_between_stages_us(struct packet*, unsigned int, unsigned int);
-long time_start_stage_us(struct packet* packet, unsigned int stage_no);
-long time_stop_stage_us(struct packet* packet, unsigned int stage_no);
+long time_start_stage_us(struct packet*, unsigned int);
+long time_stop_stage_us(struct packet*, unsigned int);

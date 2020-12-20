@@ -35,16 +35,17 @@ void dump_stats(struct packet* packet) {
         "CONV_R_START", "CONV_R_STOP", "CONV_R_DIFF",
         "VAL_START", "VAL_STOP", "VAL_DIFF",
         "QUEUE_GEN_CONV", "QUEUE_CONV_CONV", "QUEUE_CONV_VAL",
-        "TOTAL_DIFF"
+        "TOTAL_DIFF", "VALID_RESULT"
     };
 
     if(i == 0) {
+        printf("[CSV] ");
         for(int i = 0; i < sizeof(titles) / sizeof(titles[0]); i++)
             printf("%s;", titles[i]);
         printf("\n");
     }
 
-    printf("%ld;", i++);
+    printf("[CSV] %ld;", i++);
     printf("%ld;%ld;%ld;", 
             time_start_stage_us(packet, STAGE_T_GENERATOR),
             time_stop_stage_us(packet, STAGE_T_GENERATOR),
@@ -65,8 +66,9 @@ void dump_stats(struct packet* packet) {
             time_between_stages_us(packet, STAGE_T_GENERATOR, STAGE_T_CONV),
             time_between_stages_us(packet, STAGE_T_CONV, STAGE_R_CONV),
             time_between_stages_us(packet, STAGE_R_CONV, STAGE_R_VALIDATOR));
-    printf("%ld\n",
+    printf("%ld;",
             time_between_stages_us(packet, STAGE_T_GENERATOR, STAGE_R_VALIDATOR));
+    printf("%d\n", packet->valid_result);
 
 }
 
@@ -126,17 +128,16 @@ void window_task(struct packet* packet) {
                 time_spent_in_one_stage_us(packet, STAGE_R_VALIDATOR));
         draw_string(win, image_width + 10, stats_start,line); stats_start += 11;
 
-        snprintf(line, sizeof(line) - 1, "Total:          start=%ld end =%ld diff=%ld",
+        snprintf(line, sizeof(line) - 1, "Total:          start=%ld end=%ld diff=%ld",
                 time_start_stage_us(packet, STAGE_T_GENERATOR) % TIME_MODULO,
                 time_stop_stage_us(packet, STAGE_R_VALIDATOR) % TIME_MODULO,
                 time_between_stages_us(packet, STAGE_T_GENERATOR, STAGE_R_VALIDATOR));
         draw_string(win, image_width + 10, stats_start,line); stats_start += 11;
 
-        // TODO: Result
-        /*if(!stats_result)
-            draw_string(win, image_width + 10, stats_start + 77, "Result: Ok");
-        else
-            draw_string(win, image_width + 10, stats_start + 77, "Result: FAIL");*/
+        snprintf(line, sizeof(line) - 1, "Result:         %s (%d diff)",
+                (packet->valid_result == 0) ? "OK": "FAIL",
+                packet->valid_result);
+        draw_string(win, image_width + 10, stats_start, line); stats_start += 11;
     }
 }
 

@@ -51,14 +51,14 @@ long time_spent_in_stages_us(struct packet* packet, unsigned int stage_start, un
     assert(stage_start < NUMBER_OF_STAGES);
     assert(stage_end < NUMBER_OF_STAGES);
 
-    return time_diff_us(&packet->timestamps[stage_start].stop, &packet->timestamps[stage_end].start);
+    return time_diff_us(&packet->timestamps[stage_start].start, &packet->timestamps[stage_end].stop);
 }
 
 long time_between_stages_us(struct packet* packet, unsigned int stage_start, unsigned int stage_end) {
     assert(stage_start < NUMBER_OF_STAGES);
     assert(stage_end < NUMBER_OF_STAGES);
 
-    return time_diff_us(&packet->timestamps[stage_start].start, &packet->timestamps[stage_end].stop);
+    return time_diff_us(&packet->timestamps[stage_start].stop, &packet->timestamps[stage_end].start);
 }
 
 long time_start_stage_us(struct packet* packet, unsigned int stage_no) {

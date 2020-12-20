@@ -20,9 +20,9 @@ int validate(struct packet* packet, int width, int height)
         {
             if(image[i*width+j].red != image[(j+i)%width].red)
                 rv += 1;
-            if(image[i*width+j].green != (image[(j+i)%width].red + 20) % 255)
+            if(image[i*width+j].green != image[(j+i)%width].green)
                 rv += 1;
-            if(image[i*width+j].blue != (image[(j+i)%width].green + 20) % 255)
+            if(image[i*width+j].blue != image[(j+i)%width].blue)
                 rv += 1;
         }
     }
@@ -79,6 +79,8 @@ int main(int argc, char **argv)
         // Update times
         set_start_time(packet, STAGE_R_VALIDATOR, &start);
         set_stop_time_now(packet, STAGE_R_VALIDATOR);
+
+        packet->valid_result = rv;
 
         // Send copy to hypervisor
         ret = queue_async_write(queue_to_hyp, packet, packet_size);
