@@ -81,14 +81,14 @@ void window_task(struct packet* packet) {
     // Image section with scale 1
     const int scale = 4;
     struct pixel* img = (struct pixel*)packet->data;
-    draw_image(win, 5, 20, image_width, image_height, img, 1);
+    draw_image(win, 5, 20, image_width, image_height, img, scale);
 
 
     // Stats section
     int stats_start = 25;
     int scaled_image_width = image_width / scale;
     draw_string(win, scaled_image_width + 10, stats_start, "Statistics:"); stats_start += 11;
-    snprintf(line, sizeof(line) - 1, "IMG format = %d x %d x 24bit", scaled_image_width, image_height);
+    snprintf(line, sizeof(line) - 1, "IMG format = %d x %d x 24bit", image_width, image_height);
     draw_string(win, scaled_image_width + 10, stats_start, line); stats_start += 11;
     draw_string(win, scaled_image_width + 10, stats_start, "Interface baudrate = xxxxx/s"); stats_start += 11;
 

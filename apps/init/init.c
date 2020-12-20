@@ -16,9 +16,9 @@
 /*
  * Program config
  */
-#define IMAGE_WIDTH_S        "800"
-#define IMAGE_HEIGHT_S       "400"
-#define IMAGE_DIM_S          "800","400"
+#define IMAGE_WIDTH_S        "250"
+#define IMAGE_HEIGHT_S       "500"
+#define IMAGE_DIM_S          "250","500"
 
 
 enum init_mode {
@@ -66,7 +66,7 @@ static const struct proc_queue queues[][INIT_QUEUES_COUNT] = {
 static const struct subprocess subprocesses[][INIT_PROCESSES_COUNT] = {
     [INIT_MODE_TRANSMITTER] = {
         {.id = PROC_HYPERVISOR, .path="hypervisor", .args={"hypervisor", "mode=TRANSMITTER", IMAGE_DIM_S}},
-        {.id = PROC_IMAGE_GEN, .path="image_generator", .args={"image_generator", IMAGE_DIM_S, "10000"}},
+        {.id = PROC_IMAGE_GEN, .path="image_generator", .args={"image_generator", IMAGE_DIM_S, "1000"}},
         {.id = PROC_IMAGE_CONV, .path="image_converter", .args={"image_converter", "mode=TRANSMITTER", IMAGE_DIM_S}},
     },
     [INIT_MODE_RECEIVER] = {
