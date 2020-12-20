@@ -43,7 +43,7 @@ int main(int argc, char **argv)
     }
 
     queue_t* queue_from_conv = queue_acquire("tmp_QUEUE_VAL_CONV", QUEUE_SLAVE);
-    queue_t* queue_to_hyp = queue_acquire("tmp_QUEUE_HYP_VAL", QUEUE_SLAVE);
+    queue_t* queue_to_hyp = queue_acquire("tmp_QUEUE_HYP_VAL", QUEUE_MASTER);
     if(queue_from_conv == NULL || queue_to_hyp == NULL) {
         printf("[-] image_val: Failed to get queues\n");
         return 1;
