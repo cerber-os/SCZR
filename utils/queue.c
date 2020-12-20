@@ -202,15 +202,27 @@ static int _queue_read_bytes(queue_t* queue, void** buffer, size_t* outSize) {
 }
 
 static int _queue_read(queue_t* queue, void** buffer, size_t* outSize) {
-    if(queue->header->mem_mode == QUEUE_LOCAL)
-        return _queue_read_bytes(queue, buffer, outSize);
-    else {  // QUEUE_SHARED
+    struct queue_body* read_q = get_read_queue(queue->header, queue->mode);
+
+    pthread_mutex_lock(&read_q->lock);
+    if(queue->header->mem_mode == QUEUE_LOCAL) {
+        int ret =  _queue_read_bytes(queue, buffer, outSize);
+        if(ret < 0)     // If error occurred, treat packet as unread
+            sem_post(&read_q->sem_packets);
+
+        pthread_mutex_unlock(&read_q->lock);
+        return ret;
+    } else {  // QUEUE_SHARED
         struct queue_shared_mem* mem_info;
         size_t mem_info_size;
-        
+
         int ret = _queue_read_bytes(queue, (void**) &mem_info, &mem_info_size);
-        if(ret != QUEUE_OK)
+        if(ret != QUEUE_OK) {
+            sem_post(&read_q->sem_packets);
+            pthread_mutex_unlock(&read_q->lock);
             return ret;
+        }
+        pthread_mutex_unlock(&read_q->lock);
         
         *buffer = malloc(mem_info->size);
         if(buffer == NULL) {
@@ -237,12 +249,7 @@ int queue_sync_read(queue_t* queue, void** buffer, size_t* outSize) {
     struct queue_body* read_q = get_read_queue(queue->header, queue->mode);
     
     sem_wait(&read_q->sem_packets);
-
-    pthread_mutex_lock(&read_q->lock);
     ret = _queue_read(queue, buffer, outSize);
-    if(ret < 0)     // If error occurred, treat packet as unread
-        sem_post(&read_q->sem_packets);
-    pthread_mutex_unlock(&read_q->lock);
     return ret;
 }
 
@@ -256,11 +263,7 @@ int queue_async_read(queue_t* queue, void** buffer, size_t* outSize) {
     if(sem_err < 0)
         return QUEUE_ERETRY;
 
-    pthread_mutex_lock(&read_q->lock);
     ret = _queue_read(queue, buffer, outSize);
-    if(ret < 0)     // If error occurred, treat packet as unread
-        sem_post(&read_q->sem_packets);
-    pthread_mutex_unlock(&read_q->lock);
     return ret;
 }
 
@@ -341,9 +344,15 @@ static int _queue_write_bytes(queue_t* queue, void* buffer, size_t size) {
 }
 
 static int _queue_write(queue_t* queue, void* buffer, size_t size) {
-    if(queue->header->mem_mode == QUEUE_LOCAL)
-        return _queue_write_bytes(queue, buffer, size);
-    else {  // QUEUE_SHARED
+    struct queue_body* write_q = get_write_queue(queue->header, queue->mode);
+
+    if(queue->header->mem_mode == QUEUE_LOCAL) {
+        pthread_mutex_lock(&write_q->lock);
+        int ret = _queue_write_bytes(queue, buffer, size);
+        pthread_mutex_unlock(&write_q->lock);
+
+        return ret;
+    } else {  // QUEUE_SHARED
         static long mem_id = 0;
         struct queue_shared_mem mem_info;
 
@@ -357,7 +366,9 @@ static int _queue_write(queue_t* queue, void* buffer, size_t size) {
         memcpy(memory, buffer, mem_info.size);
         munmap(memory, mem_info.size);
         
+        pthread_mutex_lock(&write_q->lock);
         int ret = _queue_write_bytes(queue, &mem_info, sizeof(mem_info));
+        pthread_mutex_unlock(&write_q->lock);
         return ret;
     }
 }
@@ -367,9 +378,7 @@ int queue_sync_write(queue_t* queue, void* buffer, size_t size) {
     struct queue_body* write_q = get_write_queue(queue->header, queue->mode);
 
     do {
-        pthread_mutex_lock(&write_q->lock);
         ret = _queue_write(queue, buffer, size);
-        pthread_mutex_unlock(&write_q->lock);
 
         if(ret == QUEUE_E2BIG)
             usleep(1000);
@@ -385,9 +394,7 @@ int queue_async_write(queue_t* queue, void* buffer, size_t size) {
     int ret = QUEUE_OK;
     struct queue_body* write_q = get_write_queue(queue->header, queue->mode);
 
-    pthread_mutex_lock(&write_q->lock);
     ret = _queue_write(queue, buffer, size);
-    pthread_mutex_unlock(&write_q->lock);
 
     if(ret >= 0)
         sem_post(&write_q->sem_packets);
