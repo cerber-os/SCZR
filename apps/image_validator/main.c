@@ -18,11 +18,11 @@ int validate(struct packet* packet, int width, int height)
     {
         for(int j=0; j<width; j++)
         {
-            if(image[i*width+j].red != image[(i*width+j)%width].red)
+            if(image[i*width+j].red != image[(j+i)%width].red)
                 rv += 1;
-            if(image[i*width+j].green != (image[(i*width+j)%width].red + 20) % 255)
+            if(image[i*width+j].green != (image[(j+i)%width].red + 20) % 255)
                 rv += 1;
-            if(image[i*width+j].blue != (image[(i*width+j)%width].green + 20) % 255)
+            if(image[i*width+j].blue != (image[(j+i)%width].green + 20) % 255)
                 rv += 1;
         }
     }
