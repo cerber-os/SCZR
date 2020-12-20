@@ -4,6 +4,7 @@ enum {
     STAGE_T_GENERATOR = 0,
     STAGE_T_CONV,
     STAGE_R_CONV,
+    STAGE_R_CONV_PROC,
     STAGE_R_VALIDATOR,
 
     NUMBER_OF_STAGES
@@ -18,6 +19,7 @@ struct packet {
         struct timespec start;
         struct timespec stop;
     } timestamps[NUMBER_OF_STAGES];
+    int compressed_buffer_size; 
 
     char data[0];
 };

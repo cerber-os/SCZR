@@ -50,6 +50,8 @@ int main(int argc, char **argv)
     struct packet* packet;
     size_t packet_size;
     const size_t expected_packet_size = IMAGE_SIZE(width, height) + sizeof(struct packet);
+    const size_t header_size = sizeof(struct packet) - 4*sizeof(char);
+    const size_t image_size = IMAGE_SIZE(width, height);
 
     // Now we "split" program into 2 sub-programms.
     // trans_or_ret == 0 means that we are in transmitter mode
@@ -58,6 +60,11 @@ int main(int argc, char **argv)
         queue_t* queue_to_hyp = queue_acquire("tmp_QUEUE_HYP_CONV", QUEUE_MASTER);
         if(queue_from_gen == NULL || queue_to_hyp == NULL) {
             printf("[-] image_conv: Failed to open queues\n");
+            return 1;
+        }
+        char* compress_buffer = malloc(image_size);
+        if(compress_buffer == NULL) {
+            printf("[-] image_conv: failed to allocate compress buffers\n");
             return 1;
         }
 
@@ -78,22 +85,22 @@ int main(int argc, char **argv)
             }
             
             {
-                char* compress_buffer = malloc(packet_size);
-                char* decompress_buffer = malloc(packet_size);
-                if(compress_buffer == NULL || decompress_buffer == NULL) {
-                    printf("[-] image_conv: failed to allocate compress buffers\n");
-                    continue;
-                }
-                memcpy(decompress_buffer, packet, packet_size);
-
+                char *image_ptr = packet->data;
+                int compressed_buffer_size = packet_size;
                 for(int i = 0; i < 5; i++)
                 {
-                    int rv = fastlz_compress_level(2, (void*)decompress_buffer, packet_size, (void*)compress_buffer);
-                    rv = fastlz_decompress((void*)compress_buffer, rv, (void*)decompress_buffer, packet_size);
+                    void *ptr;
+                    compressed_buffer_size = fastlz_compress_level(2, (void*)image_ptr, compressed_buffer_size, (void*)compress_buffer);
+                    ptr = image_ptr;
+                    image_ptr = compress_buffer;
+                    compress_buffer = ptr;
                 }
 
-                free(decompress_buffer);
-                free(compress_buffer);
+                if (packet->data != image_ptr)
+                    memcpy(packet->data, image_ptr, compressed_buffer_size);
+
+                packet_size = compressed_buffer_size + sizeof(struct packet);
+                packet->compressed_buffer_size = compressed_buffer_size;
             }
 
             set_start_time(packet, STAGE_T_CONV, &start);
@@ -113,21 +120,28 @@ int main(int argc, char **argv)
             
             free(packet);
         }
+        free(compress_buffer);
     } else {
         queue_t* queue_to_val = queue_acquire("tmp_QUEUE_VAL_CONV", QUEUE_MASTER);
         if(queue_to_val == NULL) {
             printf("[-] image_conv: Failed to open queue `tmp_QUEUE_VAL_CONV`\n");
             return 1;
         }
-
+        char* decompress_buffer = malloc(image_size);
         // Add 10 bytes to size - just for safety
         char* arduino_input = malloc(expected_packet_size + 10);
+        if(decompress_buffer == NULL || arduino_input == NULL) {
+            printf("[-] image_conv: failed to allocate buffers\n");
+            return 1;
+        }
 
+        struct packet* packet = (struct packet*) arduino_input;
+        
         for(int i = 0; 1; i++)
         {
-            struct timespec start;
-
-            int found_start = 0;
+            struct timespec start, start_processing, stop;
+            int compressed_buffer_size, found_start = 0;
+            
             while(found_start < 4) {
                 char test;
                 ir_read(arduino, &test, 1);
@@ -140,36 +154,54 @@ int main(int argc, char **argv)
             }
             size_t part_size = 4;
 
-            // Start time messurement after receiving the first byte
+            if(header_size == ir_read(arduino, (char*)arduino_input + part_size, header_size))
+            {
+                compressed_buffer_size = packet->compressed_buffer_size;
+                part_size += header_size;
+            }
+            else
+                continue;          
+
+            // Start time messurement after receiving the whole correct header
             clock_gettime(CLOCK_REALTIME, &start);
 
-            while(part_size < expected_packet_size)
-                part_size += ir_read(arduino, (char*)arduino_input + part_size, expected_packet_size - part_size);
+            while(part_size < compressed_buffer_size)
+                part_size += ir_read(arduino, (char*)arduino_input + part_size, compressed_buffer_size - part_size);
+            
+            clock_gettime(CLOCK_REALTIME, &start_processing);
         
             {
-                char* compress_buffer = malloc(expected_packet_size);
-                char* decompress_buffer = malloc(expected_packet_size);
-                if(compress_buffer == NULL || decompress_buffer == NULL) {
-                    printf("[-] image_conv: failed to allocate compress buffers\n");
+                char *image_ptr = packet->data;
+                for(int i = 0; i < 5; i++)
+                {
+                    void *ptr;
+                    compressed_buffer_size = fastlz_decompress((void*)image_ptr, compressed_buffer_size, (void*)decompress_buffer, image_size);
+                    ptr = image_ptr;
+                    image_ptr = decompress_buffer;
+                    decompress_buffer = ptr;
+                }
+
+                if(compressed_buffer_size != image_size)
+                {
+                    printf("[-] image_conv: failed to decompress image\n");
                     continue;
                 }
-                memcpy(decompress_buffer, arduino_input, expected_packet_size);
-                for(int i=0; i<5; i++)
-                {
-                    int rv = fastlz_compress_level(2, (void*)decompress_buffer, expected_packet_size, (void*)compress_buffer);
-                    rv = fastlz_decompress((void*)compress_buffer, rv, (void*)decompress_buffer, expected_packet_size);
-                }
-                free(decompress_buffer);
-                free(compress_buffer);
-            }
 
-            struct packet* packet = (struct packet*) arduino_input;
+                if (packet->data != image_ptr)
+                    memcpy(packet->data, image_ptr, compressed_buffer_size);
+            }
+            
             set_start_time(packet, STAGE_R_CONV, &start);
-            set_stop_time_now(packet, STAGE_R_CONV);
+            set_start_time(packet, STAGE_R_CONV_PROC, &start_processing);
+            clock_gettime(CLOCK_REALTIME, &stop);
+            set_stop_time(packet, STAGE_R_CONV, &stop);
+            set_stop_time(packet, STAGE_R_CONV_PROC, &stop);
 
             queue_sync_write(queue_to_val, (char*)packet, expected_packet_size);
         }
+
         free(arduino_input);
+        free(decompress_buffer);
     }
     return 0;
 }
