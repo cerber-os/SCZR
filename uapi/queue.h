@@ -18,11 +18,21 @@ enum queue_error {
     QUEUE_OK        = 0,
 };
 
-// Specified the mode of queue - one side MUST be master and
+// Specifies the mode of queue - one side MUST be master and
 //  the other one slave
 enum queue_mode {
     QUEUE_MASTER,
     QUEUE_SLAVE,
+};
+
+// Specifies the mode of memory transfer between master and slave
+enum queue_mem_mode {
+    // Copy packet data directly into queue memory region
+    QUEUE_LOCAL = 0,
+
+    // Allocate new shared memory for each packet and send only its ID
+    //  through queue
+    QUEUE_SHARED,
 };
 
 /********************************************
@@ -38,6 +48,7 @@ struct queue_element {
 // Represents allocated two-way queue
 struct queue_header {
     int uid;
+    int mem_mode;
     size_t full_size;
 
     struct queue_body {
@@ -64,12 +75,13 @@ typedef struct queue {
 
 /* 
  * Create a new queue
- *  @path: unique name of the queue - must met requirement for shm_open
- *  @size: size in bytes of queues buffer
- *  @uid:  unique identifier of queue - must be unique for all processes on VM
+ *  @path:       unique name of the queue - must met requirement for shm_open
+ *  @size:       size in bytes of queues buffer
+ *  @uid:        unique identifier of queue - must be unique for all processes on VM
+ *  @queue_mode: queue memory mode - see: queue_mem_mode
  *  @return: QUEUE_OK on success, negative otherwise
  */
-int queue_create(const char* path, size_t size, int uid);
+int queue_create(const char* path, size_t size, int uid, int queue_mode);
 
 /*
  * Delete queue
