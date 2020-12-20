@@ -1,12 +1,12 @@
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <time.h>
-#include <sys/mman.h>
 #include <string.h>
-#include "image.h"
+#include <sys/mman.h>
+#include <time.h>
 
+#include "image.h"
 #include "queue.h"
-#include "shared_mem.h"
 #include "misc.h"
 
 double func(double x)
