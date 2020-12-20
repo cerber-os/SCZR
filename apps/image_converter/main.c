@@ -97,7 +97,10 @@ int main(int argc, char **argv)
                 }
 
                 if (packet->data != image_ptr)
+                {
                     memcpy(packet->data, image_ptr, compressed_buffer_size);
+                    compress_buffer = image_ptr;
+                }
 
                 packet_size = compressed_buffer_size + sizeof(struct packet);
                 packet->compressed_buffer_size = compressed_buffer_size;
@@ -188,7 +191,10 @@ int main(int argc, char **argv)
                 }
 
                 if (packet->data != image_ptr)
+                {
                     memcpy(packet->data, image_ptr, compressed_buffer_size);
+                    decompress_buffer = image_ptr;
+                }
             }
             
             set_start_time(packet, STAGE_R_CONV, &start);
