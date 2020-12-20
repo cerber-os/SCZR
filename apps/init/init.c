@@ -76,6 +76,7 @@ extern char** environ;
 int main(int argc, char** argv) {
     char cmdline[1024];
     enum init_mode mode = INIT_MODE_TRANSMITTER;
+    enum queue_mem_mode queue_mode = QUEUE_LOCAL;
 
     printf("[i] init: started\n");
 
@@ -88,6 +89,7 @@ int main(int argc, char** argv) {
     read(fd, cmdline, sizeof(cmdline));
     close(fd);
 
+    // Check mode
     printf("[i] init: cmdline - `%s`\n", cmdline);
     if(strstr(cmdline, "mode=TRANSMITTER"))
         mode = INIT_MODE_TRANSMITTER;
@@ -97,6 +99,15 @@ int main(int argc, char** argv) {
         printf("[-] init: unknown mode - continue with transmitter\n");
     printf("[i] init: continue with mode %d\n", mode);
 
+    // Check queue config
+    if(strstr(cmdline, "queue=local"))
+        queue_mode = QUEUE_LOCAL;
+    else if(strstr(cmdline, "queue=shared"))
+        queue_mode = QUEUE_SHARED;
+    else
+        printf("[-] init: unknown queue mode - continue with local\n");
+    printf("[i] init: using queue mode = %d\n", queue_mode);
+
     // Setup queues
     printf("[i] init: setting up queues\n");
     for(int i = 0; i < INIT_QUEUES_COUNT; i++) {
@@ -105,7 +116,7 @@ int main(int argc, char** argv) {
         strcpy(path, "/tmp_QUEUE_");
         strcpy(path + sizeof("/tmp_QUEUE_") - 1, q->name);
 
-        int ret = queue_create(path, INIT_QUEUE_SIZE, q->uid);
+        int ret = queue_create(path, INIT_QUEUE_SIZE, q->uid, queue_mode);
         if(ret < 0) {
             fprintf(stderr, "Failed to setup queue - '%s'\n", path);
             exit(1);
