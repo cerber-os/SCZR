@@ -16,9 +16,9 @@
 /*
  * Program config
  */
-#define IMAGE_WIDTH_S        "160"
-#define IMAGE_HEIGHT_S       "80"
-#define IMAGE_DIM_S          "160","80"
+#define IMAGE_WIDTH_S        "800"
+#define IMAGE_HEIGHT_S       "400"
+#define IMAGE_DIM_S          "800","400"
 
 
 enum init_mode {

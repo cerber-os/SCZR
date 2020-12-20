@@ -79,7 +79,7 @@ void window_task(struct packet* packet) {
     draw_string(win, 10, 10, window_title[mode]);
 
     // Image section with scale 1
-    const int scale = 1;
+    const int scale = 4;
     struct pixel* img = (struct pixel*)packet->data;
     draw_image(win, 5, 20, image_width, image_height, img, 1);
 
@@ -139,7 +139,7 @@ void window_task(struct packet* packet) {
         snprintf(line, sizeof(line) - 1, "Result:         %s (%d diff)",
                 (packet->valid_result == 0) ? "OK": "FAIL",
                 packet->valid_result);
-        draw_string(win, image_width + 10, stats_start, line); stats_start += 11;
+        draw_string(win, scaled_image_width + 10, stats_start, line); stats_start += 11;
     }
 }
 
