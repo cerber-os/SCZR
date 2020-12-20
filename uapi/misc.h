@@ -9,7 +9,11 @@ enum {
     NUMBER_OF_STAGES
 };
 
+extern const int PACKET_MAGIC_VALUE;
+extern const char* PACKET_MAGIC_VALUE_CHAR;
+
 struct packet {
+    char magic[4];
     struct period {
         struct timespec start;
         struct timespec stop;

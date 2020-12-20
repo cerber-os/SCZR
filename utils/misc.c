@@ -4,7 +4,8 @@
 
 #include "misc.h"
 
-
+const int PACKET_MAGIC_VALUE = 0xffaaccbb;
+const char* PACKET_MAGIC_VALUE_CHAR = (char*) &PACKET_MAGIC_VALUE;
 
 void set_start_time_now(struct packet* packet, unsigned int stage_no) {
     assert(stage_no < NUMBER_OF_STAGES);

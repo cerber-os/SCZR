@@ -127,8 +127,18 @@ int main(int argc, char **argv)
         {
             struct timespec start;
 
-            size_t part_size = 0;
-            part_size = ir_read(arduino, (char*)arduino_input, 1);
+            int found_start = 0;
+            while(found_start < 4) {
+                char test;
+                ir_read(arduino, &test, 1);
+                if(test == PACKET_MAGIC_VALUE_CHAR[found_start])
+                    found_start++;
+                else if(test == PACKET_MAGIC_VALUE_CHAR[0])
+                    found_start = 1;
+                else
+                    found_start = 0;
+            }
+            size_t part_size = 4;
 
             // Start time messurement after receiving the first byte
             clock_gettime(CLOCK_REALTIME, &start);

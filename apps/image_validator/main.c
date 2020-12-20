@@ -56,14 +56,14 @@ int main(int argc, char **argv)
         struct packet* packet;
         size_t packet_size;
 
-        struct timespec start;
-        clock_gettime(CLOCK_REALTIME, &start);
-
         int ret = queue_sync_read(queue_from_conv, (void**) &packet, &packet_size);
         if(ret != 0) {
             printf("[-] image_val: failed to read from conv queue\n");
             continue;
         }
+
+        struct timespec start;
+        clock_gettime(CLOCK_REALTIME, &start);
 
         if(packet_size != expected_packet_size) {
             printf("[-] image_val: invalid size of incomming packet - Got: %zu; Expected: %zu\n", 
