@@ -42,3 +42,5 @@ apps_image_validator: apps/image_validator/main.c utils_queue utils_shared_mem u
 
 clean:
 	rm -rf out/*
+	rm buildroot_cfg/overlay_fs/*
+
