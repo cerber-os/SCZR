@@ -78,61 +78,63 @@ void window_task(struct packet* packet) {
     // Title at the top
     draw_string(win, 10, 10, window_title[mode]);
 
-    // Image section
+    // Image section with scale 1
+    const int scale = 1;
     struct pixel* img = (struct pixel*)packet->data;
-    draw_image(win, 5, 20, image_width, image_height, img);
+    draw_image(win, 5, 20, image_width, image_height, img, 1);
 
 
     // Stats section
     int stats_start = 25;
-    draw_string(win, image_width + 10, stats_start, "Statistics:"); stats_start += 11;
-    snprintf(line, sizeof(line) - 1, "IMG format = %d x %d x 24bit", image_width, image_height);
-    draw_string(win, image_width + 10, stats_start, line); stats_start += 11;
-    draw_string(win, image_width + 10, stats_start, "Interface baudrate = xxxxx/s"); stats_start += 11;
+    int scaled_image_width = image_width / scale;
+    draw_string(win, scaled_image_width + 10, stats_start, "Statistics:"); stats_start += 11;
+    snprintf(line, sizeof(line) - 1, "IMG format = %d x %d x 24bit", scaled_image_width, image_height);
+    draw_string(win, scaled_image_width + 10, stats_start, line); stats_start += 11;
+    draw_string(win, scaled_image_width + 10, stats_start, "Interface baudrate = xxxxx/s"); stats_start += 11;
 
     if (mode == MODE_TRANSMITTER) {
         snprintf(line, sizeof(line) - 1, "Generator:      start=%ld end=%ld diff=%ld",
                 time_start_stage_us(packet, STAGE_T_GENERATOR) % TIME_MODULO,
                 time_stop_stage_us(packet, STAGE_T_GENERATOR) % TIME_MODULO,
                 time_spent_in_one_stage_us(packet, STAGE_T_GENERATOR));
-        draw_string(win, image_width + 10, stats_start,line); stats_start += 11;
+        draw_string(win, scaled_image_width + 10, stats_start,line); stats_start += 11;
 
         snprintf(line, sizeof(line) - 1, "Queue gen_conv: diff=%ld",
                 time_between_stages_us(packet, STAGE_T_GENERATOR, STAGE_T_CONV));
-        draw_string(win, image_width + 10, stats_start, line); stats_start += 11;
+        draw_string(win, scaled_image_width + 10, stats_start, line); stats_start += 11;
 
         snprintf(line, sizeof(line) - 1, "Converter:      start=%ld end=%ld diff=%ld",
                 time_start_stage_us(packet, STAGE_T_CONV) % TIME_MODULO,
                 time_stop_stage_us(packet, STAGE_T_CONV) % TIME_MODULO,
                 time_spent_in_one_stage_us(packet, STAGE_T_CONV));
-        draw_string(win, image_width + 10, stats_start, line); stats_start += 11;
+        draw_string(win, scaled_image_width + 10, stats_start, line); stats_start += 11;
 
     } else {
         snprintf(line, sizeof(line) - 1, "Arduino pipe:   diff=%ld",
                 time_between_stages_us(packet, STAGE_T_CONV, STAGE_R_CONV));
-        draw_string(win, image_width + 10, stats_start,line); stats_start += 11;
+        draw_string(win, scaled_image_width + 10, stats_start,line); stats_start += 11;
 
         snprintf(line, sizeof(line) - 1, "Converter:      start=%ld end=%ld diff=%ld",
                 time_start_stage_us(packet, STAGE_R_CONV) % TIME_MODULO,
                 time_stop_stage_us(packet, STAGE_R_CONV) % TIME_MODULO,
                 time_spent_in_one_stage_us(packet, STAGE_R_CONV));
-        draw_string(win, image_width + 10, stats_start,line); stats_start += 11;
+        draw_string(win, scaled_image_width + 10, stats_start,line); stats_start += 11;
 
         snprintf(line, sizeof(line) - 1, "Queue conv_val: diff=%ld",
                 time_between_stages_us(packet, STAGE_R_CONV, STAGE_R_VALIDATOR));
-        draw_string(win, image_width + 10, stats_start,line); stats_start += 11;
+        draw_string(win, scaled_image_width + 10, stats_start,line); stats_start += 11;
 
         snprintf(line, sizeof(line) - 1, "Validator:      start=%ld end=%ld diff=%ld",
                 time_start_stage_us(packet, STAGE_R_VALIDATOR) % TIME_MODULO,
                 time_stop_stage_us(packet, STAGE_R_VALIDATOR) % TIME_MODULO,
                 time_spent_in_one_stage_us(packet, STAGE_R_VALIDATOR));
-        draw_string(win, image_width + 10, stats_start,line); stats_start += 11;
+        draw_string(win, scaled_image_width + 10, stats_start,line); stats_start += 11;
 
         snprintf(line, sizeof(line) - 1, "Total:          start=%ld end=%ld diff=%ld",
                 time_start_stage_us(packet, STAGE_T_GENERATOR) % TIME_MODULO,
                 time_stop_stage_us(packet, STAGE_R_VALIDATOR) % TIME_MODULO,
                 time_between_stages_us(packet, STAGE_T_GENERATOR, STAGE_R_VALIDATOR));
-        draw_string(win, image_width + 10, stats_start,line); stats_start += 11;
+        draw_string(win, scaled_image_width + 10, stats_start,line); stats_start += 11;
 
         snprintf(line, sizeof(line) - 1, "Result:         %s (%d diff)",
                 (packet->valid_result == 0) ? "OK": "FAIL",
