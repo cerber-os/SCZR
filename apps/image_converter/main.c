@@ -99,8 +99,11 @@ int main(int argc, char **argv)
             set_start_time(packet, STAGE_T_CONV, &start);
             set_stop_time_now(packet, STAGE_T_CONV);
             
-            if(packet_size != ir_write(arduino, packet, packet_size))
-                printf("[-] image_conv: failed to sent our packet to Arduino\n");
+            size_t already_sent = 0;
+            while(already_sent < packet_size)
+                already_sent += ir_write(arduino, 
+                        (char*)packet + already_sent, 
+                        (packet_size - already_sent > 100) ? 100: packet_size - already_sent);
 
             printf("[i] image_conv: Message processed - bytes (%zu)\n", packet_size);
 
@@ -123,9 +126,23 @@ int main(int argc, char **argv)
         for(int i = 0; 1; i++)
         {
             struct timespec start;
+
+            int found_start = 0;
+            while(found_start < 4) {
+                char test;
+                ir_read(arduino, &test, 1);
+                if(test == PACKET_MAGIC_VALUE_CHAR[found_start])
+                    found_start++;
+                else if(test == PACKET_MAGIC_VALUE_CHAR[0])
+                    found_start = 1;
+                else
+                    found_start = 0;
+            }
+            size_t part_size = 4;
+
+            // Start time messurement after receiving the first byte
             clock_gettime(CLOCK_REALTIME, &start);
 
-            size_t part_size = 0;
             while(part_size < expected_packet_size)
                 part_size += ir_read(arduino, (char*)arduino_input + part_size, expected_packet_size - part_size);
         

@@ -1,6 +1,6 @@
 CC=clang
 CFLAGS=-Wall -g -Og
-LIBS=-lrt -lpthread 
+LIBS=-lrt -lpthread -lm
 
 all: utils_queue utils_fastlz utils_device apps_init \
 	apps_hypervisor apps_image_generator apps_image_converter \

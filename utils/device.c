@@ -22,10 +22,16 @@ ir_device* ir_open(char* name)
     cfsetospeed(&term, IR_BAUD_RATE);
     term.c_cflag &= ~(PARENB | CSTOPB | CSIZE);
     term.c_cflag |= CS8 | CLOCAL;
-    term.c_lflag = ICANON;
+
+    term.c_iflag &= ~(IGNBRK | BRKINT | PARMRK | ISTRIP
+                           | INLCR | IGNCR | ICRNL | IXON);
     term.c_oflag &= ~OPOST;
+    term.c_lflag &= ~(ECHO | ECHONL | ICANON | ISIG | IEXTEN);
+    term.c_cflag &= ~(CSIZE | PARENB);
+    term.c_cflag |= CS8;
 
     tcsetattr(fd, TCSANOW, &term);
+    tcflush(fd, TCIFLUSH);
     tcflush(fd, TCOFLUSH);
 
     ir_device* dev = malloc(sizeof(ir_device));
@@ -42,6 +48,7 @@ ir_device* ir_open(char* name)
 int ir_read(ir_device* dev, void* buffer, size_t size)
 {
     if(dev == NULL) {
+        printf("[i] device: using STUB ir_read\n");
         memset(buffer, 0, size);
         return size;
     }
@@ -51,12 +58,14 @@ int ir_read(ir_device* dev, void* buffer, size_t size)
 
 int ir_write(ir_device* dev, void* buffer, size_t size)
 {
-    if(dev == NULL)
+    if(dev == NULL) {
+        printf("[i] device: using STUB ir_write\n");
         return size;
+    }
     
     int ret = write(dev->fd, buffer, size);
-    usleep(1000);
-    tcflush(dev->fd,TCIOFLUSH);
+    usleep(100);
+    // tcflush(dev->fd,TCIOFLUSH);
     return ret;
 }
 

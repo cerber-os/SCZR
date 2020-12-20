@@ -43,7 +43,7 @@ int main(int argc, char **argv)
     }
 
     queue_t* queue_from_conv = queue_acquire("tmp_QUEUE_VAL_CONV", QUEUE_SLAVE);
-    queue_t* queue_to_hyp = queue_acquire("tmp_QUEUE_HYP_VAL", QUEUE_SLAVE);
+    queue_t* queue_to_hyp = queue_acquire("tmp_QUEUE_HYP_VAL", QUEUE_MASTER);
     if(queue_from_conv == NULL || queue_to_hyp == NULL) {
         printf("[-] image_val: Failed to get queues\n");
         return 1;
@@ -56,14 +56,14 @@ int main(int argc, char **argv)
         struct packet* packet;
         size_t packet_size;
 
-        struct timespec start;
-        clock_gettime(CLOCK_REALTIME, &start);
-
         int ret = queue_sync_read(queue_from_conv, (void**) &packet, &packet_size);
         if(ret != 0) {
             printf("[-] image_val: failed to read from conv queue\n");
             continue;
         }
+
+        struct timespec start;
+        clock_gettime(CLOCK_REALTIME, &start);
 
         if(packet_size != expected_packet_size) {
             printf("[-] image_val: invalid size of incomming packet - Got: %zu; Expected: %zu\n", 

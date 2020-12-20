@@ -66,7 +66,7 @@ static const struct proc_queue queues[][INIT_QUEUES_COUNT] = {
 static const struct subprocess subprocesses[][INIT_PROCESSES_COUNT] = {
     [INIT_MODE_TRANSMITTER] = {
         {.id = PROC_HYPERVISOR, .path="hypervisor", .args={"hypervisor", "mode=TRANSMITTER", IMAGE_DIM_S}},
-        {.id = PROC_IMAGE_GEN, .path="image_generator", .args={"image_generator", IMAGE_DIM_S}},
+        {.id = PROC_IMAGE_GEN, .path="image_generator", .args={"image_generator", IMAGE_DIM_S, "100000"}},
         {.id = PROC_IMAGE_CONV, .path="image_converter", .args={"image_converter", "mode=TRANSMITTER", IMAGE_DIM_S}},
     },
     [INIT_MODE_RECEIVER] = {
