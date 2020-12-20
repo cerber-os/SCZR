@@ -9,19 +9,53 @@
 #include "shared_mem.h"
 #include "misc.h"
 
-// we try to calculate x^2 integral
-int monte_carlo(int max_x, int number_of_iterations)
+double func(double x)
 {
-    int x,y,good,bad;
-    good = bad = 0;
+    return exp(x)+exp(-x);
+}
+
+double min(double a, double b)
+{
+    if(a<b)
+        return a;
+    else
+        return b;
+}
+
+double max(double a, double b)
+{
+    if(a>b)
+        return a;
+    else
+        return b;
+}
+
+double generator(double a, double b) // generate random numbers in given range
+{
+    return a + ((double)rand()/((double)(RAND_MAX)+1) * (b-a));
+}
+
+// we try to calculate integral
+int monte_carlo(int number_of_iterations)
+{
+    double x, y, min_x, max_x, tmp, func_max, good;
+    good = 0;
+    tmp = rand()%5 + 1;
+    min_x = generator(0, tmp);
+    max_x = generator(min_x + 6, min_x + 10);
+    func_max = max(func(min_x), func(max_x));
     for(int i=0; i<number_of_iterations; i++)
     {
-        x = rand()%max_x;
-        y = rand();
-        if(y <= (x^2))
+        x = generator(min_x, max_x);
+        y = generator(0, func_max);
+        if(y <= func(x))
             good++;
     }
-    return (int)((good/number_of_iterations)*(max_x^2)*max_x);
+    double area = (good/(double)number_of_iterations)*func_max*(max_x-min_x);
+    int pixel_value;
+    pixel_value = (int)area;
+    pixel_value = pixel_value%255;
+    return pixel_value;
 }
 
 void generate_image(struct packet* packet, int width, int height, int number_of_iterations)
@@ -31,7 +65,7 @@ void generate_image(struct packet* packet, int width, int height, int number_of_
     // we need to fill first row with random colors
     for(int i=0; i<width; i++)
     {
-        image[i].red = monte_carlo(rand()%20+1,number_of_iterations)%255;
+        image[i].red = monte_carlo(number_of_iterations);
         image[i].green = (image[i].red + 20) % 255;
         image[i].blue = (image[i].green + 20) % 255;
     }
