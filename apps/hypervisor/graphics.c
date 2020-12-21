@@ -59,24 +59,24 @@ int is_screen_exposed(hyp_window* hwnd) {
     return 0;
 }
 
-void draw_image(hyp_window* hwnd, int x, int y, int width, int height, struct pixel* buffer) {
-
+void draw_image(hyp_window* hwnd, int x, int y, int width, int height, struct pixel* buffer, int scale) {
     int* buf32 = malloc(width * height * 4);
-    for(int x = 0; x < width; x++)
-        for(int y = 0; y < height; y++)
-            buf32[y * width + x] =  (buffer[y * width + x].red)         | \
-                                    (buffer[y * width + x].green << 8)  | \
-                                    (buffer[y * width + x].blue << 16);
+    for(int x = 0; x < width; x += scale)
+        for(int y = 0; y < height; y += scale)
+            buf32[(y / scale) * width / scale + (x / scale)] =  
+                    (buffer[y * width + x].red)         | \
+                    (buffer[y * width + x].green << 8)  | \
+                    (buffer[y * width + x].blue << 16);
     
     XImage* image = XCreateImage(hwnd->display, hwnd->visual, 
                 DefaultDepth(hwnd->display, DefaultScreen(hwnd->display)), 
-                ZPixmap, 0, (char*)buf32, width, height, 32, 0);
+                ZPixmap, 0, (char*)buf32, width / scale, height / scale, 32, 0);
     XPutImage(hwnd->display, hwnd->win,
                 DefaultGC(hwnd->display, hwnd->screen_num),
                 image,
                 0, 0,
                 x, y,
-                width, height);
+                width / scale, height / scale);
     free(buf32);
 }
 

@@ -1,3 +1,7 @@
+/*
+ * Structures used to represent processed image
+ */
+
 #ifndef IMAGE_H
 #define IMAGE_H
 

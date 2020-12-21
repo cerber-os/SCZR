@@ -2,23 +2,26 @@
  * Custom initialization process starting all neccessary
  * applications
  */
+#define _GNU_SOURCE
 
 #include <fcntl.h>
+#include <sched.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
 #include "queue.h"
+#include "sched_pp.h"
 
 #define ARRAY_SIZE(X)      (sizeof(X) / sizeof(X[0]))
 
 /*
  * Program config
  */
-#define IMAGE_WIDTH_S        "160"
-#define IMAGE_HEIGHT_S       "80"
-#define IMAGE_DIM_S          "160","80"
+#define IMAGE_WIDTH_S        "230"
+#define IMAGE_HEIGHT_S       "500"
+#define IMAGE_DIM_S          "230","500"
 
 
 enum init_mode {
@@ -66,7 +69,7 @@ static const struct proc_queue queues[][INIT_QUEUES_COUNT] = {
 static const struct subprocess subprocesses[][INIT_PROCESSES_COUNT] = {
     [INIT_MODE_TRANSMITTER] = {
         {.id = PROC_HYPERVISOR, .path="hypervisor", .args={"hypervisor", "mode=TRANSMITTER", IMAGE_DIM_S}},
-        {.id = PROC_IMAGE_GEN, .path="image_generator", .args={"image_generator", IMAGE_DIM_S, "10000"}},
+        {.id = PROC_IMAGE_GEN, .path="image_generator", .args={"image_generator", IMAGE_DIM_S, "1000"}},
         {.id = PROC_IMAGE_CONV, .path="image_converter", .args={"image_converter", "mode=TRANSMITTER", IMAGE_DIM_S}},
     },
     [INIT_MODE_RECEIVER] = {
@@ -149,6 +152,69 @@ int main(int argc, char** argv) {
             perror("[-] init: fork failed\n");
             exit(1);
         }
+
+        /*
+         * Scheduler playground - uncomment necessary code block
+         */
+
+        // Taskset
+        /*if(i > 0) {
+            char buf[256];
+            snprintf(buf, sizeof(buf), "/taskset -p %d %d", i, pid);
+            int ret = system(buf);
+            if(ret != 0) {
+                printf("[-] init: failed to taskset with command: `%s`\n", buf);
+            }
+        }*/
+
+        // SCHED_IDLE
+        /*if(i > 0) {
+            struct sched_attr attr;
+            memset(&attr, 0, sizeof(attr));
+            attr.size = sizeof(struct sched_attr);
+
+            #define SCHED_FLAG_RESET_ON_FORK	0x01
+            attr.sched_flags = SCHED_FLAG_RESET_ON_FORK;
+            attr.sched_priority = 0;
+            if(i == 1) {
+                attr.sched_policy = SCHED_OTHER;
+                attr.sched_nice = -10;
+            } else if(i == 2) {
+                attr.sched_policy = SCHED_IDLE;
+                attr.sched_nice = 10;
+            }
+            int ret = sched_setattr(pid, &attr, 0);
+            if(ret != 0) {
+                perror("[i] init: failed to sched_setattr");
+            }
+        }*/
+
+
+        /*// SCHED_DEADLINE
+        if(i > 0 && mode == INIT_MODE_TRANSMITTER) {
+            struct sched_attr attr;
+            memset(&attr, 0, sizeof(attr));
+            attr.size = sizeof(struct sched_attr);
+
+            #define SCHED_FLAG_RESET_ON_FORK	0x01
+            attr.sched_flags = SCHED_FLAG_RESET_ON_FORK;
+            attr.sched_priority = 0;
+            if(i == 1) {    // Generator
+                attr.sched_policy = SCHED_DEADLINE;
+                attr.sched_runtime =  20000ul * 1000;
+                attr.sched_deadline = 50000ul * 1000;
+                attr.sched_period =   100000ul * 1000;
+            } else if(i == 2) { // Validator
+                attr.sched_policy = SCHED_DEADLINE;
+                attr.sched_runtime =  30000ul * 1000;
+                attr.sched_deadline = 50000ul * 1000;
+                attr.sched_period =   100000ul * 1000;
+            }
+            int ret = sched_setattr(pid, &attr, 0);
+            if(ret != 0) {
+                perror("[i] init: failed to sched_setattr");
+            }
+        }    */    
     }
 
     // Wait endlessly

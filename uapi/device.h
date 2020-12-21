@@ -6,7 +6,7 @@
 #include <termios.h>
 
 // Speed of connected UART port
-#define IR_BAUD_RATE B57600
+#define IR_BAUD_RATE B115200
 
 typedef struct ir_device {
     int fd;

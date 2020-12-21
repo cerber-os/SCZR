@@ -1,3 +1,6 @@
+/*
+ * Implementation of shared memory allocation between processes
+ */
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>

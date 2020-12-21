@@ -223,20 +223,13 @@ static int _queue_read(queue_t* queue, void** buffer, size_t* outSize) {
             return ret;
         }
         pthread_mutex_unlock(&read_q->lock);
-        
-        *buffer = malloc(mem_info->size);
-        if(buffer == NULL) {
-            perror("[-] queue (_queue_read): OOM");
-            return QUEUE_EMEM;
-        }
 
         void* memory = get_shared_memory(mem_info->name, mem_info->size);
         if(memory == NULL)
             return QUEUE_EFAULT;
-        memcpy(*buffer, memory, mem_info->size);
+        *buffer = memory;
         *outSize = mem_info->size;
-
-        munmap(memory, mem_info->size);
+        
         delete_shared_memory(mem_info->name);
         free(mem_info);
 

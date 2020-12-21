@@ -1,3 +1,6 @@
+/*
+ * Implementation of shared memory allocation between processes
+ */
 #include <stdlib.h>
 
 /*
