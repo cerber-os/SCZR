@@ -9,7 +9,6 @@
 #include "misc.h"
 
 
-// TODO:
 int validate(struct packet* packet, int width, int height)
 {
     struct pixel* image = (struct pixel*) packet->data;

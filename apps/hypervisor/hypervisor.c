@@ -80,8 +80,10 @@ void window_task(struct packet* packet) {
 
     // Image section with scale 1
     const int scale = 4;
-    struct pixel* img = (struct pixel*)packet->data;
-    draw_image(win, 5, 20, image_width, image_height, img, scale);
+    if(mode == MODE_RECEIVER) {
+        struct pixel* img = (struct pixel*)packet->data;
+        draw_image(win, 5, 20, image_width, image_height, img, scale);
+    }
 
 
     // Stats section
@@ -149,7 +151,6 @@ struct packet* stats_task(queue_t* queue_client) {
 
     int ret = queue_sync_read(queue_client, (void**)&buffer, &size);
     if(ret == 0) {
-        // printf("[i] hypervisor: Got a new message - %zu\n", size);
         return (struct packet*) buffer;
     }
     return NULL;

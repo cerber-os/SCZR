@@ -34,12 +34,6 @@ static long time_diff_us(struct timespec* start, struct timespec* end) {
         (start->tv_sec * 1000 * 1000 + start->tv_nsec / 1000);
 }
 
-/*
-static long time_diff_ms(struct timespec* start, struct timespec* end) {
-    return (end->tv_sec * 1000 + end->tv_nsec / 1000 / 1000) - \
-        (start->tv_sec * 1000 + start->tv_nsec / 1000 / 1000);
-}
-*/
 
 long time_spent_in_one_stage_us(struct packet* packet, unsigned int stage_no) {
     assert(stage_no < NUMBER_OF_STAGES);

@@ -65,7 +65,6 @@ int ir_write(ir_device* dev, void* buffer, size_t size)
     
     int ret = write(dev->fd, buffer, size);
     usleep(100);
-    // tcflush(dev->fd,TCIOFLUSH);
     return ret;
 }
 
